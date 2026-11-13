@@ -182,6 +182,28 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
       VALUES (?, ?, ?, ?, ?, ?)
     `);
 
+    const findContactStmt = db.prepare(`
+      SELECT id, person_name, job_title, phone_mobile, phone_landline, whatsapp_number, address, notes
+      FROM contacts 
+      WHERE (email IS NOT NULL AND email != '' AND LOWER(email) = LOWER(?))
+         OR (phone_mobile IS NOT NULL AND phone_mobile != '' AND phone_mobile = ?)
+         OR (whatsapp_number IS NOT NULL AND whatsapp_number != '' AND whatsapp_number = ?)
+      LIMIT 1
+    `);
+
+    const updateContactStmt = db.prepare(`
+      UPDATE contacts SET
+        person_name = COALESCE(NULLIF(person_name, ''), ?),
+        job_title = COALESCE(NULLIF(job_title, ''), ?),
+        phone_mobile = COALESCE(NULLIF(phone_mobile, ''), ?),
+        phone_landline = COALESCE(NULLIF(phone_landline, ''), ?),
+        whatsapp_number = COALESCE(NULLIF(whatsapp_number, ''), ?),
+        address = COALESCE(NULLIF(address, ''), ?),
+        notes = COALESCE(NULLIF(notes, ''), ?),
+        updated_at = datetime('now')
+      WHERE id = ?
+    `);
+
     const insertContactStmt = db.prepare(`
       INSERT INTO contacts (
         company_id, person_name, job_title, email, phone_mobile, phone_landline,
@@ -219,22 +241,44 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
         }
       }
 
-      // Insert Contacts
+      // Insert or Merge Contacts (Strict Deduplication by Email / Phone / WhatsApp)
       if (company.contacts && Array.isArray(company.contacts)) {
         for (const contact of company.contacts) {
-          insertContactStmt.run(
-            companyDbId,
-            contact.personName || null,
-            contact.jobTitle || null,
-            contact.email || null,
-            contact.phoneMobile || null,
-            contact.phoneLandline || null,
-            contact.whatsappNumber || null,
-            contact.address || company.address || null,
-            contact.isValidEmail ? 1 : 0,
-            contact.isValidWhatsApp ? 1 : 0,
-            contact.notes || null
-          );
+          const cleanEmail = contact.email ? String(contact.email).trim().toLowerCase() : null;
+          const cleanPhone = contact.phoneMobile ? String(contact.phoneMobile).trim() : null;
+          const cleanWa = contact.whatsappNumber ? String(contact.whatsappNumber).trim() : null;
+
+          const existing = (cleanEmail || cleanPhone || cleanWa)
+            ? (findContactStmt.get(cleanEmail || '', cleanPhone || '', cleanWa || '') as any)
+            : null;
+
+          if (existing) {
+            // Merge & enrich existing contact with any non-empty fields
+            updateContactStmt.run(
+              contact.personName || null,
+              contact.jobTitle || null,
+              cleanPhone || null,
+              contact.phoneLandline || null,
+              cleanWa || null,
+              contact.address || company.address || null,
+              contact.notes || null,
+              existing.id
+            );
+          } else {
+            insertContactStmt.run(
+              companyDbId,
+              contact.personName || null,
+              contact.jobTitle || null,
+              cleanEmail,
+              cleanPhone,
+              contact.phoneLandline || null,
+              cleanWa,
+              contact.address || company.address || null,
+              contact.isValidEmail ? 1 : 0,
+              contact.isValidWhatsApp ? 1 : 0,
+              contact.notes || null
+            );
+          }
           savedContactsCount++;
         }
       }

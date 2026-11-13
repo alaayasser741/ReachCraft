@@ -158,6 +158,9 @@ export function runMigrations(): void {
     CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(email);
     CREATE INDEX IF NOT EXISTS idx_contacts_phone_mobile ON contacts(phone_mobile);
     CREATE INDEX IF NOT EXISTS idx_contacts_whatsapp_number ON contacts(whatsapp_number);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_unique_email ON contacts(LOWER(email)) WHERE email IS NOT NULL AND email != '';
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_unique_phone ON contacts(phone_mobile) WHERE phone_mobile IS NOT NULL AND phone_mobile != '';
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_unique_wa ON contacts(whatsapp_number) WHERE whatsapp_number IS NOT NULL AND whatsapp_number != '';
     CREATE INDEX IF NOT EXISTS idx_company_links_company_id ON company_links(company_id);
     CREATE INDEX IF NOT EXISTS idx_campaign_recipients_status ON campaign_recipients(campaign_id, status);
     CREATE INDEX IF NOT EXISTS idx_message_log_campaign ON message_log(campaign_id);

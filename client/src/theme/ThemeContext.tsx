@@ -6,6 +6,7 @@ interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
+  themeOverlay: Theme | null;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -20,6 +21,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   });
 
+  const [themeOverlay, setThemeOverlay] = useState<Theme | null>(null);
+
   useEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') {
@@ -32,26 +35,33 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('reachcraft_theme', theme);
   }, [theme]);
 
-  const triggerTransition = () => {
+  const triggerTransition = (target: Theme) => {
     const root = document.documentElement;
     root.classList.add('theme-transitioning');
+    setThemeOverlay(target);
+
     window.setTimeout(() => {
       root.classList.remove('theme-transitioning');
-    }, 350);
+    }, 500);
+
+    window.setTimeout(() => {
+      setThemeOverlay(null);
+    }, 850);
   };
 
   const toggleTheme = () => {
-    triggerTransition();
-    setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    const next = theme === 'dark' ? 'light' : 'dark';
+    triggerTransition(next);
+    setThemeState(next);
   };
 
   const setTheme = (newTheme: Theme) => {
-    triggerTransition();
+    triggerTransition(newTheme);
     setThemeState(newTheme);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme, themeOverlay }}>
       {children}
     </ThemeContext.Provider>
   );

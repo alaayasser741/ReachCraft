@@ -5,6 +5,7 @@ import { LanguageProvider } from './i18n/LanguageContext';
 import { ThemeProvider } from './theme/ThemeContext';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ToastProvider } from './components/ui/Toast';
+import { TransitionOverlay } from './components/ui/TransitionOverlay';
 import { Layout } from './components/layout/Layout';
 
 import { Login } from './pages/Login';
@@ -56,6 +57,7 @@ export const App: React.FC = () => {
         <LanguageProvider>
           <AuthProvider>
             <ToastProvider>
+              <TransitionOverlay />
               <BrowserRouter>
                 <Routes>
                   {/* Public Login Route */}

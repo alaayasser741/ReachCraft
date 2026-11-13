@@ -149,6 +149,32 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const contactId = req.params.id;
   const updates = parseResult.data;
 
+  // Strict Deduplication Check: Prevent assigning email/phone that belongs to another contact
+  if (updates.email || updates.phone_mobile || updates.whatsapp_number) {
+    const conflict = db.prepare(`
+      SELECT id FROM contacts 
+      WHERE id != ? AND (
+        (email IS NOT NULL AND email != '' AND LOWER(email) = LOWER(?)) OR
+        (phone_mobile IS NOT NULL AND phone_mobile != '' AND phone_mobile = ?) OR
+        (whatsapp_number IS NOT NULL AND whatsapp_number != '' AND whatsapp_number = ?)
+      )
+      LIMIT 1
+    `).get(
+      contactId,
+      updates.email || '',
+      updates.phone_mobile || '',
+      updates.whatsapp_number || ''
+    );
+
+    if (conflict) {
+      res.status(409).json({
+        success: false,
+        error: 'يوجد جهة اتصال أخرى مسجلة مسبقاً بنفس البريد الإلكتروني أو رقم الهاتف أو الواتساب. يُمنع التكرار.',
+      });
+      return;
+    }
+  }
+
   const fields: string[] = [];
   const params: any[] = [];
 

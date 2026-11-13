@@ -7,6 +7,7 @@ interface LanguageContextType {
   setLanguage: (lang: Language) => void;
   toggleLanguage: () => void;
   t: (key: string, params?: Record<string, string | number>) => string;
+  langOverlay: Language | null;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -17,6 +18,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return saved === 'ar' || saved === 'en' ? saved : 'ar';
   });
 
+  const [langOverlay, setLangOverlay] = useState<Language | null>(null);
+
   const dir: 'rtl' | 'ltr' = language === 'ar' ? 'rtl' : 'ltr';
 
   useEffect(() => {
@@ -25,22 +28,29 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('reachcraft_lang', language);
   }, [language, dir]);
 
-  const triggerLangTransition = () => {
+  const triggerLangTransition = (target: Language) => {
     const root = document.documentElement;
     root.classList.add('lang-transitioning');
+    setLangOverlay(target);
+
     window.setTimeout(() => {
       root.classList.remove('lang-transitioning');
-    }, 250);
+    }, 500);
+
+    window.setTimeout(() => {
+      setLangOverlay(null);
+    }, 850);
   };
 
   const setLanguage = (lang: Language) => {
-    triggerLangTransition();
+    triggerLangTransition(lang);
     setLanguageState(lang);
   };
 
   const toggleLanguage = () => {
-    triggerLangTransition();
-    setLanguageState((prev) => (prev === 'ar' ? 'en' : 'ar'));
+    const next = language === 'ar' ? 'en' : 'ar';
+    triggerLangTransition(next);
+    setLanguageState(next);
   };
 
   const t = (path: string, params?: Record<string, string | number>): string => {
@@ -86,8 +96,9 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setLanguage,
       toggleLanguage,
       t,
+      langOverlay,
     }),
-    [language, dir]
+    [language, dir, langOverlay]
   );
 
   return (
