@@ -165,6 +165,8 @@ export function runMigrations(): void {
     CREATE INDEX IF NOT EXISTS idx_campaign_recipients_status ON campaign_recipients(campaign_id, status);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_recipients_unique_contact ON campaign_recipients(campaign_id, contact_id);
     CREATE INDEX IF NOT EXISTS idx_message_log_campaign ON message_log(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_message_log_status_addr ON message_log(status, recipient_address);
+    CREATE INDEX IF NOT EXISTS idx_message_log_contact_id ON message_log(contact_id);
     CREATE INDEX IF NOT EXISTS idx_unsubscribes_token ON unsubscribes(token);
     CREATE INDEX IF NOT EXISTS idx_unsubscribes_identifier ON unsubscribes(identifier);
   `);

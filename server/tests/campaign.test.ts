@@ -104,4 +104,41 @@ describe('Campaigns & Queue Engine Integration', () => {
     expect(logRes.body.logs.length).toBeGreaterThan(0);
     expect(logRes.body.logs[0].status).toBe('dry_run');
   });
+
+  it('Fetches contacted recipients and excludes previously contacted recipient when exclude_previously_contacted is true', async () => {
+    const db = getDatabase();
+
+    // 1. Insert a log showing alice@acme-global.com was sent previously
+    db.prepare(`
+      INSERT INTO message_log (campaign_id, channel, recipient_address, rendered_body, status)
+      VALUES (NULL, 'email', 'alice@acme-global.com', 'Prior message', 'sent')
+    `).run();
+
+    // 2. Query /api/campaigns/contacted-recipients
+    const contactedRes = await request(app)
+      .get('/api/campaigns/contacted-recipients?channel=email')
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(contactedRes.status).toBe(200);
+    expect(contactedRes.body.addresses).toContain('alice@acme-global.com');
+
+    // 3. Attempt to create campaign with exclude_previously_contacted: true
+    const aliceContact = db.prepare("SELECT id FROM contacts WHERE email = 'alice@acme-global.com'").get() as { id: number };
+    const template = db.prepare("SELECT id FROM templates WHERE channel = 'email' LIMIT 1").get() as { id: number };
+
+    const createExcludedRes = await request(app)
+      .post('/api/campaigns')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        name: 'Exclude Test Campaign',
+        channel: 'email',
+        template_id: template.id,
+        is_dry_run: true,
+        contact_ids: [aliceContact.id],
+        exclude_previously_contacted: true,
+      });
+
+    expect(createExcludedRes.status).toBe(400);
+    expect(createExcludedRes.body.error).toContain('تم استثناؤها لسابقة مراسلتها في السجل');
+  });
 });

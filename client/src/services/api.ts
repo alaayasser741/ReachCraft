@@ -173,14 +173,24 @@ export const api = {
     ),
   getCampaignRecipients: (id: number) =>
     request<{ success: boolean; recipients: CampaignRecipient[] }>(`/campaigns/${id}/recipients`),
+  getContactedRecipients: (channel?: 'email' | 'whatsapp') => {
+    const query = channel ? `?channel=${channel}` : '';
+    return request<{
+      success: boolean;
+      addresses: string[];
+      contactIds: number[];
+      details: Record<string, { lastSentAt: string; sendCount: number; channel: string }>;
+    }>(`/campaigns/contacted-recipients${query}`);
+  },
   createCampaign: (data: {
     name: string;
     channel: 'email' | 'whatsapp';
     template_id: number;
     is_dry_run: boolean;
     contact_ids: number[];
+    exclude_previously_contacted?: boolean;
   }) =>
-    request<{ success: boolean; campaignId: number }>('/campaigns', {
+    request<{ success: boolean; campaignId: number; message?: string }>('/campaigns', {
       method: 'POST',
       body: JSON.stringify(data),
     }),

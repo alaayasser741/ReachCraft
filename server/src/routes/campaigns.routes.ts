@@ -17,6 +17,7 @@ const createCampaignSchema = z.object({
   template_id: z.number().int().positive(),
   is_dry_run: z.boolean().default(false),
   contact_ids: z.array(z.number().int().positive()).min(1, 'At least one contact must be selected'),
+  exclude_previously_contacted: z.boolean().optional().default(false),
 });
 
 // GET /api/campaigns
@@ -33,6 +34,70 @@ router.get('/', requireAuth, (_req: AuthRequest, res: Response): void => {
   `).all();
 
   res.json({ success: true, campaigns });
+});
+
+// GET /api/campaigns/contacted-recipients
+router.get('/contacted-recipients', requireAuth, (req: AuthRequest, res: Response): void => {
+  const db = getDatabase();
+  const channel = req.query.channel as string | undefined;
+
+  let query = `
+    SELECT 
+      LOWER(TRIM(ml.recipient_address)) as address,
+      ml.channel,
+      ml.contact_id,
+      MAX(ml.created_at) as last_sent_at,
+      COUNT(*) as send_count
+    FROM message_log ml
+    WHERE ml.status = 'sent'
+  `;
+  const params: any[] = [];
+
+  if (channel && ['email', 'whatsapp'].includes(channel)) {
+    query += ' AND ml.channel = ?';
+    params.push(channel);
+  }
+
+  query += ' GROUP BY LOWER(TRIM(ml.recipient_address)), ml.channel';
+
+  const rows = db.prepare(query).all(...params) as Array<{
+    address: string;
+    channel: string;
+    contact_id: number | null;
+    last_sent_at: string;
+    send_count: number;
+  }>;
+
+  const addresses: string[] = [];
+  const contactIds: number[] = [];
+  const details: Record<string, { lastSentAt: string; sendCount: number; channel: string }> = {};
+
+  for (const row of rows) {
+    if (row.address) {
+      addresses.push(row.address);
+      if (row.channel === 'whatsapp') {
+        const digits = row.address.replace(/\D/g, '');
+        if (digits && digits !== row.address) {
+          addresses.push(digits);
+        }
+      }
+      details[row.address] = {
+        lastSentAt: row.last_sent_at,
+        sendCount: row.send_count,
+        channel: row.channel,
+      };
+    }
+    if (row.contact_id) {
+      contactIds.push(row.contact_id);
+    }
+  }
+
+  res.json({
+    success: true,
+    addresses: Array.from(new Set(addresses)),
+    contactIds: Array.from(new Set(contactIds)),
+    details,
+  });
 });
 
 // GET /api/campaigns/:id
@@ -92,7 +157,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  const { name, channel, template_id, is_dry_run, contact_ids } = parseResult.data;
+  const { name, channel, template_id, is_dry_run, contact_ids, exclude_previously_contacted } = parseResult.data;
   const db = getDatabase();
 
   // Verify template exists
@@ -133,7 +198,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
   }>;
 
   const seenAddresses = new Set<string>();
-  const finalContactIds: number[] = [];
+  let finalContactIds: number[] = [];
 
   for (const c of selectedContacts) {
     let targetAddress: string | null = null;
@@ -155,10 +220,29 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     finalContactIds.push(c.id);
   }
 
+  // If exclude_previously_contacted is enabled, filter out any contact whose address was sent in message_log
+  if (exclude_previously_contacted) {
+    const sentRows = db.prepare(`
+      SELECT DISTINCT LOWER(TRIM(recipient_address)) as addr
+      FROM message_log
+      WHERE status = 'sent' AND channel = ?
+    `).all(channel) as Array<{ addr: string }>;
+    const sentSet = new Set(sentRows.map((r) => r.addr));
+
+    finalContactIds = finalContactIds.filter((cId) => {
+      const c = selectedContacts.find((sc) => sc.id === cId);
+      if (!c) return false;
+      const targetAddress = channel === 'email'
+        ? (c.email ? c.email.trim().toLowerCase() : '')
+        : (c.whatsapp_number || c.phone_mobile ? String(c.whatsapp_number || c.phone_mobile).replace(/\D/g, '') : '');
+      return !sentSet.has(targetAddress);
+    });
+  }
+
   if (finalContactIds.length === 0) {
     res.status(400).json({
       success: false,
-      error: 'لا توجد جهات اتصال صالحة للإرسال بالقناة المحددة، أو جميعها مكررة أو غير مجهزة بعنوان إرسال.',
+      error: 'لا توجد جهات اتصال صالحة للإرسال بالقناة المحددة، أو تم استثناؤها لسابقة مراسلتها في السجل.',
     });
     return;
   }

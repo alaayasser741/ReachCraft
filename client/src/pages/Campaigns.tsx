@@ -16,6 +16,7 @@ import {
   Layers,
   AlertTriangle,
   ShieldCheck,
+  History,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -46,6 +47,35 @@ export const Campaigns: React.FC = () => {
     is_dry_run: false,
     selectedContactIds: [] as number[],
   });
+  const [excludePreviouslyContacted, setExcludePreviouslyContacted] = useState<boolean>(false);
+  const [contactedData, setContactedData] = useState<{
+    addresses: Set<string>;
+    contactIds: Set<number>;
+    details: Record<string, { lastSentAt: string; sendCount: number; channel: string }>;
+  }>({
+    addresses: new Set(),
+    contactIds: new Set(),
+    details: {},
+  });
+
+  const loadContactedRecipients = async (channel: 'email' | 'whatsapp') => {
+    try {
+      const res = await api.getContactedRecipients(channel);
+      setContactedData({
+        addresses: new Set(res.addresses.map((a) => a.toLowerCase().trim())),
+        contactIds: new Set(res.contactIds),
+        details: res.details || {},
+      });
+    } catch (err) {
+      console.error('Failed to load contacted recipients history:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isWizardOpen) {
+      loadContactedRecipients(newCampaign.channel);
+    }
+  }, [isWizardOpen, newCampaign.channel]);
 
   // Test Send Modal State
   const [isTestSendOpen, setIsTestSendOpen] = useState(false);
@@ -88,6 +118,7 @@ export const Campaigns: React.FC = () => {
       is_dry_run: false,
       selectedContactIds: [],
     });
+    setExcludePreviouslyContacted(false);
     setWizardStep(1);
     setIsWizardOpen(true);
   };
@@ -146,6 +177,7 @@ export const Campaigns: React.FC = () => {
         template_id: newCampaign.template_id,
         is_dry_run: newCampaign.is_dry_run,
         contact_ids: newCampaign.selectedContactIds,
+        exclude_previously_contacted: excludePreviouslyContacted,
       });
 
       toastSuccess('Campaign created successfully!');
@@ -206,10 +238,62 @@ export const Campaigns: React.FC = () => {
     return result;
   }, [contacts, newCampaign.channel]);
 
+  const isContactPreviouslySent = React.useCallback(
+    (c: Contact) => {
+      if (c.id && contactedData.contactIds.has(c.id)) return true;
+      if (newCampaign.channel === 'email') {
+        const email = c.email ? c.email.trim().toLowerCase() : '';
+        return Boolean(email && contactedData.addresses.has(email));
+      } else {
+        const phone = (c.whatsapp_number || c.phone_mobile)?.replace(/\D/g, '');
+        return Boolean(phone && contactedData.addresses.has(phone));
+      }
+    },
+    [contactedData, newCampaign.channel]
+  );
+
+  const previouslyContactedCount = React.useMemo(() => {
+    return eligibleContacts.filter((c) => isContactPreviouslySent(c)).length;
+  }, [eligibleContacts, isContactPreviouslySent]);
+
+  const handleToggleExcludePreviouslyContacted = (exclude: boolean) => {
+    setExcludePreviouslyContacted(exclude);
+    if (exclude) {
+      setNewCampaign((prev) => {
+        const filteredIds = prev.selectedContactIds.filter((id) => {
+          const contact = contacts.find((c) => c.id === id);
+          return contact ? !isContactPreviouslySent(contact) : true;
+        });
+        const removedCount = prev.selectedContactIds.length - filteredIds.length;
+        if (removedCount > 0) {
+          toastSuccess(
+            t('campaigns.excludedToast', { count: removedCount }) ||
+              `تم إلغاء تحديد ${removedCount} جهة اتصال أُرسل لها مسبقاً`
+          );
+        }
+        return {
+          ...prev,
+          selectedContactIds: filteredIds,
+        };
+      });
+    }
+  };
+
   const selectAllEligible = () => {
+    const candidates = excludePreviouslyContacted
+      ? eligibleContacts.filter((c) => !isContactPreviouslySent(c))
+      : eligibleContacts;
     setNewCampaign((prev) => ({
       ...prev,
-      selectedContactIds: eligibleContacts.map((c) => c.id),
+      selectedContactIds: candidates.map((c) => c.id),
+    }));
+  };
+
+  const selectOnlyUnsent = () => {
+    const candidates = eligibleContacts.filter((c) => !isContactPreviouslySent(c));
+    setNewCampaign((prev) => ({
+      ...prev,
+      selectedContactIds: candidates.map((c) => c.id),
     }));
   };
 
@@ -627,20 +711,58 @@ export const Campaigns: React.FC = () => {
             {/* Step 3: Choose Recipients */}
             {wizardStep === 3 && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between text-xs">
+                {/* Anti-Duplicate Logs Filter Checkbox */}
+                <div className="p-3.5 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/70 dark:bg-amber-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors">
+                  <label className="flex items-start sm:items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={excludePreviouslyContacted}
+                      onChange={(e) => handleToggleExcludePreviouslyContacted(e.target.checked)}
+                      className="mt-0.5 sm:mt-0 rounded border-amber-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                        <History className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>{t('campaigns.excludePreviouslyContacted')}</span>
+                      </div>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-300/80 mt-0.5">
+                        {t('campaigns.excludePreviouslyContactedDesc')}
+                      </p>
+                    </div>
+                  </label>
+                  {previouslyContactedCount > 0 && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-200/80 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 shrink-0 self-start sm:self-auto border border-amber-300 dark:border-amber-700/60">
+                      <CheckCircle2 className="w-3 h-3 text-amber-700 dark:text-amber-300" />
+                      <span>{t('campaigns.previouslyContactedSummary', { count: previouslyContactedCount })}</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <span className="font-semibold text-slate-700 dark:text-slate-300">
                     {t('campaigns.selectedRecipientsCount', {
                       selected: newCampaign.selectedContactIds.length,
-                      eligible: eligibleContacts.length
+                      eligible: eligibleContacts.length,
                     })}
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={selectAllEligible}
                       className="text-brand-600 font-semibold hover:underline"
                     >
                       {t('campaigns.selectAll')}
                     </button>
+                    {previouslyContactedCount > 0 && (
+                      <>
+                        <span>•</span>
+                        <button
+                          onClick={selectOnlyUnsent}
+                          className="text-amber-600 dark:text-amber-400 font-semibold hover:underline"
+                        >
+                          {t('campaigns.selectOnlyUnsent')}
+                        </button>
+                      </>
+                    )}
                     <span>•</span>
                     <button
                       onClick={deselectAll}
@@ -654,10 +776,17 @@ export const Campaigns: React.FC = () => {
                 <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
                   {eligibleContacts.map((c) => {
                     const isSelected = newCampaign.selectedContactIds.includes(c.id);
+                    const isPreviouslySent = isContactPreviouslySent(c);
+                    const isDisabled = excludePreviouslyContacted && isPreviouslySent;
+
                     return (
                       <div
                         key={c.id}
                         onClick={() => {
+                          if (isDisabled) {
+                            toastError(t('campaigns.contactExcludedWarning'));
+                            return;
+                          }
                           setNewCampaign((prev) => ({
                             ...prev,
                             selectedContactIds: isSelected
@@ -665,15 +794,34 @@ export const Campaigns: React.FC = () => {
                               : [...prev.selectedContactIds, c.id],
                           }));
                         }}
-                        className={`p-2.5 flex items-center justify-between text-xs cursor-pointer ${
-                          isSelected ? 'bg-brand-50/40 dark:bg-brand-950/20' : ''
+                        className={`p-2.5 flex items-center justify-between text-xs transition-colors ${
+                          isDisabled
+                            ? 'opacity-50 bg-slate-50 dark:bg-slate-800/40 cursor-not-allowed'
+                            : isSelected
+                            ? 'bg-brand-50/40 dark:bg-brand-950/20 cursor-pointer'
+                            : 'cursor-pointer hover:bg-slate-50/80 dark:hover:bg-slate-800/50'
                         }`}
                       >
                         <div>
-                          <span className="font-bold text-slate-900 dark:text-white">
-                            {c.person_name || t('contacts.anonymousContact')}
-                          </span>{' '}
-                          <span className="text-slate-500">({c.company_name})</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 dark:text-white">
+                              {c.person_name || t('contacts.anonymousContact')}
+                            </span>
+                            <span className="text-slate-500">({c.company_name})</span>
+                            {isPreviouslySent && (
+                              <span
+                                title={
+                                  c.email && contactedData.details[c.email.toLowerCase().trim()]
+                                    ? `آخر مراسلة: ${contactedData.details[c.email.toLowerCase().trim()].lastSentAt}`
+                                    : undefined
+                                }
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80"
+                              >
+                                <History className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                <span>{t('campaigns.previouslyContactedBadge')}</span>
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[11px] text-slate-400 font-mono" dir="ltr">
                             {newCampaign.channel === 'email' ? c.email : c.whatsapp_number || c.phone_mobile}
                           </div>
@@ -681,8 +829,9 @@ export const Campaigns: React.FC = () => {
                         <input
                           type="checkbox"
                           checked={isSelected}
+                          disabled={isDisabled}
                           onChange={() => {}}
-                          className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                          className="rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:opacity-40 disabled:cursor-not-allowed"
                         />
                       </div>
                     );
@@ -708,6 +857,12 @@ export const Campaigns: React.FC = () => {
                   <div className="flex justify-between">
                     <span className="text-slate-500">{t('campaigns.totalTargets')}:</span>
                     <span className="font-bold">{newCampaign.selectedContactIds.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">{t('campaigns.excludePreviouslyContacted')}:</span>
+                    <span className={`font-bold ${excludePreviouslyContacted ? 'text-amber-600' : 'text-slate-600'}`}>
+                      {excludePreviouslyContacted ? (t('common.yes') || 'مفعل') : (t('common.no') || 'معطل')}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">{t('common.status')}:</span>
