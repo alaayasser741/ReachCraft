@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
   UploadCloud,
@@ -69,15 +70,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
               to={item.to}
               onClick={onCloseMobile}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                `relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors select-none ${
                   isActive
-                    ? 'bg-brand-50 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300 font-semibold shadow-xs'
+                    ? 'text-brand-700 dark:text-brand-300 font-semibold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/60'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeSidebarPill"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      className="absolute inset-0 bg-brand-50 dark:bg-brand-950/60 rounded-xl -z-10 border border-brand-200/60 dark:border-brand-800/60 shadow-xs"
+                    />
+                  )}
                   <Icon
                     className={`w-4 h-4 shrink-0 transition-colors ${
                       isActive ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'

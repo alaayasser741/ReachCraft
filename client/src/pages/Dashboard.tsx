@@ -16,6 +16,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { useTranslation } from '../i18n/LanguageContext';
+import { motion, type Variants } from 'framer-motion';
 import { api } from '../services/api';
 import { Campaign, AppSettings } from '../types';
 
@@ -66,10 +67,28 @@ export const Dashboard: React.FC = () => {
 
   const emailCapPercent = Math.min(100, Math.round((stats.emailToday / stats.emailCap) * 100));
 
+  const containerVariants: Variants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.07 },
+    },
+  };
+
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: 'easeOut' } },
+  };
+
   return (
-    <div className="space-y-8 animate-fade-in max-w-7xl mx-auto" dir={dir}>
+    <div className="space-y-8 max-w-7xl mx-auto" dir={dir}>
       {/* Top Banner: Welcome & Quick Launch */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-brand-900 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl shadow-brand-950/20">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-brand-900 via-slate-900 to-slate-950 text-white p-6 sm:p-8 rounded-3xl shadow-xl shadow-brand-950/20 border border-brand-800/40"
+      >
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/20 text-brand-300 text-xs font-semibold mb-3 border border-brand-500/30">
             <Shield className="w-3.5 h-3.5" />
@@ -98,84 +117,97 @@ export const Dashboard: React.FC = () => {
             </Button>
           </Link>
         </div>
-      </div>
+      </motion.div>
 
       {/* 4 Hero KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <Card className="p-5" hoverEffect>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {t('dashboard.totalCompanies')}
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center">
-              <Building2 className="w-5 h-5" />
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
+      >
+        <motion.div variants={itemVariants}>
+          <Card className="p-5" hoverEffect>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {t('dashboard.totalCompanies')}
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center">
+                <Building2 className="w-5 h-5" />
+              </div>
             </div>
-          </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
-            {isLoading ? '...' : stats.totalCompanies}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">{t('dashboard.totalCompaniesDesc')}</p>
-        </Card>
+            <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
+              {isLoading ? '...' : stats.totalCompanies}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">{t('dashboard.totalCompaniesDesc')}</p>
+          </Card>
+        </motion.div>
 
-        <Card className="p-5" hoverEffect>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {t('dashboard.verifiedEmails')}
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-950/50 text-brand-600 flex items-center justify-center">
-              <Mail className="w-5 h-5" />
+        <motion.div variants={itemVariants}>
+          <Card className="p-5" hoverEffect>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {t('dashboard.verifiedEmails')}
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-950/50 text-brand-600 flex items-center justify-center">
+                <Mail className="w-5 h-5" />
+              </div>
             </div>
-          </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
-            {isLoading ? '...' : stats.withEmail}
-          </p>
-          <p className="text-xs text-brand-600 dark:text-brand-400 mt-1 font-medium">
-            {t('dashboard.verifiedEmailsDesc')}
-          </p>
-        </Card>
+            <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
+              {isLoading ? '...' : stats.withEmail}
+            </p>
+            <p className="text-xs text-brand-600 dark:text-brand-400 mt-1 font-medium">
+              {t('dashboard.verifiedEmailsDesc')}
+            </p>
+          </Card>
+        </motion.div>
 
-        <Card className="p-5" hoverEffect>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {t('dashboard.whatsappCandidates')}
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center">
-              <MessageSquare className="w-5 h-5" />
+        <motion.div variants={itemVariants}>
+          <Card className="p-5" hoverEffect>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {t('dashboard.whatsappCandidates')}
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center">
+                <MessageSquare className="w-5 h-5" />
+              </div>
             </div>
-          </div>
-          <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
-            {isLoading ? '...' : stats.withWhatsApp}
-          </p>
-          <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">
-            {t('dashboard.whatsappCandidatesDesc')}
-          </p>
-        </Card>
+            <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
+              {isLoading ? '...' : stats.withWhatsApp}
+            </p>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">
+              {t('dashboard.whatsappCandidatesDesc')}
+            </p>
+          </Card>
+        </motion.div>
 
-        <Card className="p-5" hoverEffect>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {t('dashboard.dailyQuota')}
-            </span>
-            <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 flex items-center justify-center">
-              <Clock className="w-5 h-5" />
+        <motion.div variants={itemVariants}>
+          <Card className="p-5" hoverEffect>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {t('dashboard.dailyQuota')}
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 flex items-center justify-center">
+                <Clock className="w-5 h-5" />
+              </div>
             </div>
-          </div>
-          <div className="flex items-baseline gap-2 mt-3">
-            <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
-              {stats.emailToday}
-            </span>
-            <span className="text-sm text-slate-400">
-              / {stats.emailCap} {t('dashboard.emailsUnit')}
-            </span>
-          </div>
-          <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mt-2">
-            <div
-              className="bg-brand-500 h-full rounded-full transition-all duration-500"
-              style={{ width: `${emailCapPercent}%` }}
-            />
-          </div>
-        </Card>
-      </div>
+            <div className="flex items-baseline gap-2 mt-3">
+              <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
+                {stats.emailToday}
+              </span>
+              <span className="text-sm text-slate-400">
+                / {stats.emailCap} {t('dashboard.emailsUnit')}
+              </span>
+            </div>
+            <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mt-2">
+              <div
+                className="bg-brand-500 h-full rounded-full transition-all duration-500"
+                style={{ width: `${emailCapPercent}%` }}
+              />
+            </div>
+          </Card>
+        </motion.div>
+      </motion.div>
 
       {/* Two Column Section: Channel Health & Recent Campaigns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

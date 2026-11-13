@@ -26,8 +26,11 @@ import {
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { Input } from '../components/ui/Input';
+import { Tabs } from '../components/ui/Tabs';
 import { useToast } from '../components/ui/Toast';
 import { useTranslation } from '../i18n/LanguageContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '../services/api';
 import { InboxMessage, InboxCounts, EmailCategory, EmailPriority } from '../types';
 
@@ -336,86 +339,35 @@ export const Inbox: React.FC = () => {
 
       {/* Tabs & Search Filter */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-        {/* Category Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-          <button
-            onClick={() => setActiveCategory('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              activeCategory === 'all'
-                ? 'bg-brand-600 text-white shadow-sm'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-            }`}
-          >
-            <span>{dir === 'rtl' ? 'الكل' : 'All'}</span>
-            <span className="text-[10px] opacity-80 px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/10 font-mono">
-              {counts.all}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveCategory('hr_interview')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              activeCategory === 'hr_interview'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100'
-            }`}
-          >
-            <span>🎯 {dir === 'rtl' ? 'مقابلات و HR' : 'HR & Interviews'}</span>
-            {counts.hr_interview > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-700 text-white font-mono">
-                {counts.hr_interview}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveCategory('company_update')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              activeCategory === 'company_update'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100'
-            }`}
-          >
-            <span>🏢 {dir === 'rtl' ? 'تحديثات الشركات' : 'Company Updates'}</span>
-            {counts.company_update > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-700 text-white font-mono">
-                {counts.company_update}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveCategory('direct_reply')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              activeCategory === 'direct_reply'
-                ? 'bg-purple-600 text-white shadow-sm'
-                : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100'
-            }`}
-          >
-            <span>💬 {dir === 'rtl' ? 'ردود مباشرة' : 'Direct Replies'}</span>
-            {counts.direct_reply > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-purple-700 text-white font-mono">
-                {counts.direct_reply}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveCategory('unread')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-              activeCategory === 'unread'
-                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-            }`}
-          >
-            <span>✉️ {dir === 'rtl' ? 'غير مقروء' : 'Unread'}</span>
-            {counts.unread > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-mono">
-                {counts.unread}
-              </span>
-            )}
-          </button>
-        </div>
+        {/* Category Animated Tabs */}
+        <Tabs
+          activeId={activeCategory}
+          onChange={setActiveCategory}
+          layoutId="inboxActiveCategoryTab"
+          items={[
+            { id: 'all', label: dir === 'rtl' ? 'الكل' : 'All', count: counts.all },
+            {
+              id: 'hr_interview',
+              label: dir === 'rtl' ? '🎯 مقابلات و HR' : '🎯 HR & Interviews',
+              count: counts.hr_interview > 0 ? counts.hr_interview : undefined,
+            },
+            {
+              id: 'company_update',
+              label: dir === 'rtl' ? '🏢 تحديثات الشركات' : '🏢 Company Updates',
+              count: counts.company_update > 0 ? counts.company_update : undefined,
+            },
+            {
+              id: 'direct_reply',
+              label: dir === 'rtl' ? '💬 ردود مباشرة' : '💬 Direct Replies',
+              count: counts.direct_reply > 0 ? counts.direct_reply : undefined,
+            },
+            {
+              id: 'unread',
+              label: dir === 'rtl' ? '✉️ غير مقروء' : '✉️ Unread',
+              count: counts.unread > 0 ? counts.unread : undefined,
+            },
+          ]}
+        />
 
         {/* Search Field */}
         <div className="relative w-full lg:w-72">
@@ -470,10 +422,13 @@ export const Inbox: React.FC = () => {
               {messages.map((msg) => {
                 const isSelected = selectedId === msg.id;
                 return (
-                  <div
+                  <motion.div
                     key={msg.id}
                     onClick={() => selectEmail(msg)}
-                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                    whileHover={{ scale: 1.008, x: dir === 'rtl' ? -2 : 2 }}
+                    whileTap={{ scale: 0.995 }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition-colors ${
                       isSelected
                         ? 'bg-brand-50/70 dark:bg-brand-950/40 border-brand-300 dark:border-brand-800 shadow-sm ring-1 ring-brand-500/20'
                         : msg.is_read
@@ -528,7 +483,7 @@ export const Inbox: React.FC = () => {
                         {msg.from_email}
                       </span>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -537,8 +492,16 @@ export const Inbox: React.FC = () => {
 
         {/* Right Column: Selected Message Details & AI Reply (7 cols) */}
         <div className="lg:col-span-7">
-          {selectedMessage ? (
-            <Card className="p-5 sm:p-6 space-y-5">
+          <AnimatePresence mode="wait">
+            {selectedMessage ? (
+              <motion.div
+                key={selectedMessage.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+              >
+                <Card className="p-5 sm:p-6 space-y-5">
               {/* Message Header */}
               <div className="border-b border-slate-100 dark:border-slate-800 pb-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -786,7 +749,14 @@ export const Inbox: React.FC = () => {
                 </div>
               </div>
             </Card>
-          ) : (
+          </motion.div>
+        ) : (
+          <motion.div
+            key="empty-inbox-detail"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             <Card className="p-12 text-center text-slate-400 space-y-2 border-dashed">
               <Mail className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-700" />
               <p className="text-sm font-semibold">
@@ -798,8 +768,10 @@ export const Inbox: React.FC = () => {
                   : 'You can read full details, see the AI Arabic summary, and 1-click send replies.'}
               </p>
             </Card>
-          )}
-        </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
       </div>
     </div>
   );
