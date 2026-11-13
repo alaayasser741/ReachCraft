@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   ShieldCheck,
   History,
+  Trash2,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -57,6 +58,9 @@ export const Campaigns: React.FC = () => {
     contactIds: new Set(),
     details: {},
   });
+
+  const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadContactedRecipients = async (channel: 'email' | 'whatsapp') => {
     try {
@@ -161,6 +165,21 @@ export const Campaigns: React.FC = () => {
       loadAll();
     } catch (err: any) {
       toastError(err.message || 'Failed to cancel');
+    }
+  };
+
+  const handleDeleteCampaign = async () => {
+    if (!campaignToDelete) return;
+    setIsDeleting(true);
+    try {
+      const res = await api.deleteCampaign(campaignToDelete.id);
+      toastSuccess(res.message || t('campaigns.deleteSuccess'));
+      setCampaignToDelete(null);
+      loadAll();
+    } catch (err: any) {
+      toastError(err.message || t('campaigns.deleteError'));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -547,6 +566,17 @@ export const Campaigns: React.FC = () => {
                         {t('campaigns.details')}
                       </Button>
                     </Link>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-900/60"
+                      leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                      onClick={() => setCampaignToDelete(camp)}
+                      title={t('campaigns.deleteCampaign')}
+                    >
+                      {t('campaigns.delete')}
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -1009,6 +1039,64 @@ export const Campaigns: React.FC = () => {
               </Button>
               <Button size="sm" variant="primary" isLoading={isSendingTest} onClick={handleTriggerTestSend}>
                 {t('campaigns.dispatchTest')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Campaign Confirmation Modal */}
+      {campaignToDelete && (
+        <Modal
+          isOpen={!!campaignToDelete}
+          onClose={() => !isDeleting && setCampaignToDelete(null)}
+          title={t('campaigns.confirmDeleteTitle')}
+          maxWidth="sm"
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="text-xs text-rose-800 dark:text-rose-300 leading-relaxed font-medium">
+                {campaignToDelete.status === 'running'
+                  ? t('campaigns.confirmDeleteRunningDesc')
+                  : t('campaigns.confirmDeleteDesc', { name: campaignToDelete.name })}
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl text-xs space-y-1.5 text-slate-600 dark:text-slate-400 border border-slate-200/60 dark:border-slate-800">
+              <div className="font-extrabold text-slate-900 dark:text-white text-sm">
+                {campaignToDelete.name}
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={campaignToDelete.channel === 'email' ? 'brand' : 'success'} size="sm">
+                  {campaignToDelete.channel === 'email' ? t('templates.emailChannel') : t('templates.whatsAppChannel')}
+                </Badge>
+                <span>•</span>
+                <span>{campaignToDelete.total_recipients || 0} {t('campaigns.totalTargets')}</span>
+                <span>•</span>
+                <span className="uppercase font-semibold">{campaignToDelete.status}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCampaignToDelete(null)}
+                disabled={isDeleting}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                leftIcon={<Trash2 className="w-4 h-4" />}
+                isLoading={isDeleting}
+                onClick={handleDeleteCampaign}
+              >
+                {t('campaigns.deleteCampaign')}
               </Button>
             </div>
           </div>

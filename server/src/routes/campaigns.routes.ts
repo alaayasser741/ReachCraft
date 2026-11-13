@@ -315,6 +315,58 @@ router.post('/:id/cancel', requireAuth, (req: AuthRequest, res: Response): void 
   res.json({ success: true, message: 'Campaign cancelled' });
 });
 
+// DELETE /api/campaigns/:id
+router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
+  const campaignId = parseInt(req.params.id, 10);
+  if (isNaN(campaignId)) {
+    res.status(400).json({ success: false, error: 'Invalid campaign ID' });
+    return;
+  }
+
+  const db = getDatabase();
+
+  const campaign = db.prepare('SELECT id, name, status FROM campaigns WHERE id = ?').get(campaignId) as
+    | { id: number; name: string; status: string }
+    | undefined;
+
+  if (!campaign) {
+    res.status(404).json({ success: false, error: 'الحملة غير موجودة أو تم حذفها مسبقاً' });
+    return;
+  }
+
+  // If campaign is running or paused in queue, stop it from active set
+  try {
+    campaignQueue.cancelCampaign(campaignId);
+  } catch (err) {
+    console.warn(`Could not cancel campaign in queue before delete:`, err);
+  }
+
+  db.exec('BEGIN TRANSACTION;');
+  try {
+    // 1. Delete associated campaign recipients
+    db.prepare('DELETE FROM campaign_recipients WHERE campaign_id = ?').run(campaignId);
+
+    // 2. Disassociate message logs to keep historical sent logs intact while clearing campaign FK
+    db.prepare('UPDATE message_log SET campaign_id = NULL WHERE campaign_id = ?').run(campaignId);
+
+    // 3. Delete the campaign record
+    db.prepare('DELETE FROM campaigns WHERE id = ?').run(campaignId);
+
+    db.exec('COMMIT;');
+
+    res.json({
+      success: true,
+      message: `تم حذف الحملة "${campaign.name}" بنجاح`,
+    });
+  } catch (err: any) {
+    db.exec('ROLLBACK;');
+    res.status(500).json({
+      success: false,
+      error: err.message || 'حدث خطأ أثناء حذف الحملة',
+    });
+  }
+});
+
 // POST /api/campaigns/test-send (Test send to own email or phone)
 const testSendSchema = z.object({
   channel: z.enum(['email', 'whatsapp']),

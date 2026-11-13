@@ -235,6 +235,8 @@ export const api = {
     request<{ success: boolean }>(`/campaigns/${id}/resume`, { method: 'POST' }),
   cancelCampaign: (id: number) =>
     request<{ success: boolean }>(`/campaigns/${id}/cancel`, { method: 'POST' }),
+  deleteCampaign: (id: number) =>
+    request<{ success: boolean; message?: string }>(`/campaigns/${id}`, { method: 'DELETE' }),
   testSend: (data: { channel: 'email' | 'whatsapp'; template_id: number; recipient_address: string }) =>
     request<{ success: boolean; message: string; clickToChatUrl?: string; error?: string }>(
       '/campaigns/test-send',

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Play,
@@ -13,10 +13,12 @@ import {
   Clock,
   Shield,
   Search,
+  Trash2,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { Modal } from '../components/ui/Modal';
 import { useToast } from '../components/ui/Toast';
 import { useTranslation } from '../i18n/LanguageContext';
 import { api } from '../services/api';
@@ -25,6 +27,7 @@ import { Campaign, CampaignRecipient } from '../types';
 export const CampaignDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const campaignId = parseInt(id || '0', 10);
+  const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   const { t, dir } = useTranslation();
 
@@ -33,6 +36,8 @@ export const CampaignDetail: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadCampaignData();
@@ -99,6 +104,18 @@ export const CampaignDetail: React.FC = () => {
       loadCampaignData(false);
     } catch (err: any) {
       toastError(err.message || 'Failed to cancel');
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await api.deleteCampaign(campaignId);
+      toastSuccess(res.message || t('campaigns.deleteSuccess'));
+      navigate('/campaigns');
+    } catch (err: any) {
+      toastError(err.message || t('campaigns.deleteError'));
+      setIsDeleting(false);
     }
   };
 
@@ -235,6 +252,16 @@ export const CampaignDetail: React.FC = () => {
                 {t('campaigns.cancel')}
               </Button>
             )}
+
+            <Button
+              variant="outline"
+              size="md"
+              className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-900/60"
+              leftIcon={<Trash2 className="w-4 h-4" />}
+              onClick={() => setIsDeleteModalOpen(true)}
+            >
+              {t('campaigns.deleteCampaign')}
+            </Button>
           </div>
         </div>
 
@@ -403,6 +430,64 @@ export const CampaignDetail: React.FC = () => {
           </table>
         </div>
       </Card>
+
+      {/* Delete Campaign Confirmation Modal */}
+      {isDeleteModalOpen && campaign && (
+        <Modal
+          isOpen={isDeleteModalOpen}
+          onClose={() => !isDeleting && setIsDeleteModalOpen(false)}
+          title={t('campaigns.confirmDeleteTitle')}
+          maxWidth="sm"
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div className="text-xs text-rose-800 dark:text-rose-300 leading-relaxed font-medium">
+                {campaign.status === 'running'
+                  ? t('campaigns.confirmDeleteRunningDesc')
+                  : t('campaigns.confirmDeleteDesc', { name: campaign.name })}
+              </div>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl text-xs space-y-1.5 text-slate-600 dark:text-slate-400 border border-slate-200/60 dark:border-slate-800">
+              <div className="font-extrabold text-slate-900 dark:text-white text-sm">
+                {campaign.name}
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={campaign.channel === 'email' ? 'brand' : 'success'} size="sm">
+                  {campaign.channel === 'email' ? t('templates.emailChannel') : t('templates.whatsAppChannel')}
+                </Badge>
+                <span>•</span>
+                <span>{campaign.total_recipients || 0} {t('campaigns.totalTargets')}</span>
+                <span>•</span>
+                <span className="uppercase font-semibold">{campaign.status}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                leftIcon={<Trash2 className="w-4 h-4" />}
+                isLoading={isDeleting}
+                onClick={handleDelete}
+              >
+                {t('campaigns.deleteCampaign')}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

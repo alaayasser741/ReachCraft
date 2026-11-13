@@ -142,4 +142,51 @@ describe('Campaigns & Queue Engine Integration', () => {
     expect(createExcludedRes.status).toBe(400);
     expect(createExcludedRes.body.error).toContain('تم استثناؤها لسابقة مراسلتها في السجل');
   });
+
+  it('Deletes a campaign and cleans up recipients while preserving message log history', async () => {
+    const db = getDatabase();
+    const contact = db.prepare("SELECT id FROM contacts WHERE email = 'alice@acme-global.com'").get() as { id: number };
+    const template = db.prepare("SELECT id FROM templates WHERE channel = 'email' LIMIT 1").get() as { id: number };
+
+    // 1. Create a campaign to delete
+    const createRes = await request(app)
+      .post('/api/campaigns')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        name: 'Temporary Campaign to Delete',
+        channel: 'email',
+        template_id: template.id,
+        is_dry_run: true,
+        contact_ids: [contact.id],
+      });
+
+    expect(createRes.status).toBe(201);
+    const campaignId = createRes.body.campaignId;
+
+    // Verify recipients were created
+    const recipientsBefore = db.prepare('SELECT COUNT(*) as count FROM campaign_recipients WHERE campaign_id = ?').get(campaignId) as { count: number };
+    expect(recipientsBefore.count).toBe(1);
+
+    // 2. Delete the campaign
+    const deleteRes = await request(app)
+      .delete(`/api/campaigns/${campaignId}`)
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.success).toBe(true);
+
+    // 3. Verify campaign and recipients are deleted from DB
+    const campAfter = db.prepare('SELECT id FROM campaigns WHERE id = ?').get(campaignId);
+    expect(campAfter).toBeUndefined();
+
+    const recipientsAfter = db.prepare('SELECT COUNT(*) as count FROM campaign_recipients WHERE campaign_id = ?').get(campaignId) as { count: number };
+    expect(recipientsAfter.count).toBe(0);
+
+    // 4. Verify deleting again returns 404
+    const deleteAgainRes = await request(app)
+      .delete(`/api/campaigns/${campaignId}`)
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(deleteAgainRes.status).toBe(404);
+  });
 });
