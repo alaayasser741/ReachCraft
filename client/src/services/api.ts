@@ -333,4 +333,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ replyText }),
     }),
+  translateInboxMessage: (id: number, targetLang?: 'ar' | 'en') =>
+    request<{
+      success: boolean;
+      translatedSubject: string;
+      translatedBody: string;
+      targetLang: 'ar' | 'en';
+    }>('/inbox/' + id + '/translate', {
+      method: 'POST',
+      body: JSON.stringify({ targetLang }),
+    }),
+  deleteInboxMessage: (id: number) =>
+    request<{ success: boolean; message: string }>('/inbox/' + id, {
+      method: 'DELETE',
+    }),
 };

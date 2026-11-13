@@ -20,6 +20,8 @@ import {
   Flame,
   ArrowRight,
   CornerDownLeft,
+  Languages,
+  Trash2,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -56,6 +58,12 @@ export const Inbox: React.FC = () => {
   const [customInstructions, setCustomInstructions] = useState('');
   const [isDrafting, setIsDrafting] = useState(false);
   const [isSendingReply, setIsSendingReply] = useState(false);
+
+  // Translation & Management States
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translatedMap, setTranslatedMap] = useState<Record<number, { subject: string; body: string; targetLang: 'ar' | 'en' }>>({});
+  const [showTranslation, setShowTranslation] = useState<Record<number, boolean>>({});
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadInbox(activeCategory, searchQuery);
@@ -157,6 +165,52 @@ export const Inbox: React.FC = () => {
       toastError(err.message || 'Failed to send reply');
     } finally {
       setIsSendingReply(false);
+    }
+  };
+
+  const handleTranslate = async (targetLang?: 'ar' | 'en') => {
+    if (!selectedMessage) return;
+    const currentLang = translatedMap[selectedMessage.id]?.targetLang || 'ar';
+    const nextLang = targetLang || (currentLang === 'ar' ? 'en' : 'ar');
+
+    setIsTranslating(true);
+    try {
+      const res = await api.translateInboxMessage(selectedMessage.id, nextLang);
+      setTranslatedMap((prev) => ({
+        ...prev,
+        [selectedMessage.id]: {
+          subject: res.translatedSubject,
+          body: res.translatedBody,
+          targetLang: res.targetLang as 'ar' | 'en',
+        },
+      }));
+      setShowTranslation((prev) => ({ ...prev, [selectedMessage.id]: true }));
+      toastSuccess(dir === 'rtl' ? 'تمت ترجمة الرسالة بنجاح بواسطة الذكاء الاصطناعي!' : 'Email translated successfully!');
+    } catch (err: any) {
+      toastError(err.message || 'Translation failed');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const handleDeleteEmail = async () => {
+    if (!selectedMessage) return;
+    if (!window.confirm(dir === 'rtl' ? 'هل أنت متأكد من حذف هذه الرسالة من البريد؟' : 'Are you sure you want to delete this email?')) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await api.deleteInboxMessage(selectedMessage.id);
+      toastSuccess(dir === 'rtl' ? 'تم حذف الرسالة بنجاح' : 'Email deleted successfully');
+      setMessages((prev) => prev.filter((m) => m.id !== selectedMessage.id));
+      setCounts((prev) => ({ ...prev, all: Math.max(0, prev.all - 1) }));
+      setSelectedId(null);
+      setSelectedMessage(null);
+    } catch (err: any) {
+      toastError(err.message || 'Failed to delete message');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -492,33 +546,112 @@ export const Inbox: React.FC = () => {
                     {getCategoryBadge(selectedMessage.ai_category)}
                     {getPriorityIndicator(selectedMessage.ai_priority)}
                   </div>
-                  <span className="text-xs text-slate-400 font-mono">
-                    {new Date(selectedMessage.date).toLocaleString(dir === 'rtl' ? 'ar-EG' : 'en-US', {
-                      weekday: 'short',
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 font-mono">
+                      {new Date(selectedMessage.date).toLocaleString(dir === 'rtl' ? 'ar-EG' : 'en-US', {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleDeleteEmail}
+                      disabled={isDeleting}
+                      title={dir === 'rtl' ? 'حذف هذه الرسالة من البريد' : 'Delete email'}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
+                {/* Subject Line (Translated or Original) */}
                 <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white leading-snug">
-                  {selectedMessage.subject || '(بدون عنوان)'}
+                  {showTranslation[selectedMessage.id] && translatedMap[selectedMessage.id]?.subject
+                    ? translatedMap[selectedMessage.id].subject
+                    : selectedMessage.subject || '(بدون عنوان)'}
                 </h2>
 
-                <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-300">
-                  <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-bold flex items-center justify-center shrink-0 uppercase">
-                    {(selectedMessage.from_name || selectedMessage.from_email).slice(0, 1)}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-300">
+                    <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-bold flex items-center justify-center shrink-0 uppercase">
+                      {(selectedMessage.from_name || selectedMessage.from_email).slice(0, 1)}
+                    </div>
+                    <div className="truncate">
+                      <p className="font-bold text-slate-900 dark:text-white truncate">
+                        {selectedMessage.from_name}
+                      </p>
+                      <p className="text-[11px] text-slate-400 font-mono" dir="ltr">
+                        {selectedMessage.from_email}
+                      </p>
+                    </div>
                   </div>
-                  <div className="truncate">
-                    <p className="font-bold text-slate-900 dark:text-white truncate">
-                      {selectedMessage.from_name}
-                    </p>
-                    <p className="text-[11px] text-slate-400 font-mono" dir="ltr">
-                      {selectedMessage.from_email}
-                    </p>
+
+                  {/* Translation Control Bar */}
+                  <div className="flex items-center gap-2">
+                    {translatedMap[selectedMessage.id] ? (
+                      <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setShowTranslation((prev) => ({ ...prev, [selectedMessage.id]: false }))}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition-all text-[11px] ${
+                            !showTranslation[selectedMessage.id]
+                              ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                          }`}
+                        >
+                          🇬🇧 {dir === 'rtl' ? 'الأصل' : 'Original'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowTranslation((prev) => ({ ...prev, [selectedMessage.id]: true }))}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 text-[11px] ${
+                            showTranslation[selectedMessage.id]
+                              ? 'bg-brand-600 text-white shadow-xs'
+                              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                          }`}
+                        >
+                          <Sparkles className="w-3 h-3 text-amber-300" />
+                          <span>
+                            {translatedMap[selectedMessage.id].targetLang === 'ar' ? '🇸🇦 العربية' : '🇬🇧 English'}
+                          </span>
+                        </button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleTranslate('ar')}
+                        isLoading={isTranslating}
+                        className="h-7 text-xs font-semibold gap-1.5"
+                      >
+                        <Languages className="w-3.5 h-3.5 text-brand-600" />
+                        <span>{dir === 'rtl' ? 'ترجمة الرسالة إلى العربية' : 'Translate to Arabic'}</span>
+                      </Button>
+                    )}
+
+                    {/* Switch language translation */}
+                    {translatedMap[selectedMessage.id] && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleTranslate(translatedMap[selectedMessage.id].targetLang === 'ar' ? 'en' : 'ar')
+                        }
+                        disabled={isTranslating}
+                        className="text-[11px] text-brand-600 dark:text-brand-400 hover:underline flex items-center gap-1 font-medium"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isTranslating ? 'animate-spin' : ''}`} />
+                        <span>
+                          {translatedMap[selectedMessage.id].targetLang === 'ar'
+                            ? (dir === 'rtl' ? 'إلى English' : 'to English')
+                            : (dir === 'rtl' ? 'إلى العربية' : 'to Arabic')}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -536,9 +669,17 @@ export const Inbox: React.FC = () => {
                 </div>
               )}
 
-              {/* Email Content Body */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 overflow-x-auto max-h-[350px] overflow-y-auto leading-relaxed">
-                {selectedMessage.body_html ? (
+              {/* Email Content Body (Translated or Original) */}
+              <div
+                className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 overflow-x-auto max-h-[350px] overflow-y-auto leading-relaxed"
+                dir={showTranslation[selectedMessage.id] && translatedMap[selectedMessage.id]?.targetLang === 'ar' ? 'rtl' : 'ltr'}
+              >
+                {showTranslation[selectedMessage.id] && translatedMap[selectedMessage.id]?.body ? (
+                  <div
+                    dangerouslySetInnerHTML={{ __html: translatedMap[selectedMessage.id].body }}
+                    className="prose prose-xs dark:prose-invert max-w-none break-words"
+                  />
+                ) : selectedMessage.body_html ? (
                   <div
                     dangerouslySetInnerHTML={{ __html: selectedMessage.body_html }}
                     className="prose prose-xs dark:prose-invert max-w-none break-words"

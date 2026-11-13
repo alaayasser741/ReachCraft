@@ -195,4 +195,47 @@ router.post('/:id/send-reply', requireAuth, async (req: AuthRequest, res: Respon
   }
 });
 
+// POST /api/inbox/:id/translate
+router.post('/:id/translate', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  const db = getDatabase();
+  const id = parseInt(req.params.id, 10);
+  const message = db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(id) as any;
+
+  if (!message) {
+    res.status(404).json({ success: false, error: 'الرسالة غير موجودة' });
+    return;
+  }
+
+  const { targetLang } = req.body || {};
+  try {
+    const result = await geminiService.translateEmail({
+      subject: message.subject,
+      body: message.body_html || message.body_text || message.snippet || '',
+      targetLang: targetLang === 'en' ? 'en' : 'ar',
+    });
+
+    res.json({
+      success: true,
+      translatedSubject: result.translatedSubject,
+      translatedBody: result.translatedBody,
+      targetLang: result.targetLang,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'فشل ترجمة الرسالة' });
+  }
+});
+
+// DELETE /api/inbox/:id
+router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
+  const db = getDatabase();
+  const id = parseInt(req.params.id, 10);
+
+  const info = db.prepare('DELETE FROM inbox_messages WHERE id = ?').run(id);
+  if (info.changes > 0) {
+    res.json({ success: true, message: 'تم حذف الرسالة بنجاح' });
+  } else {
+    res.status(404).json({ success: false, error: 'الرسالة غير موجودة' });
+  }
+});
+
 export default router;

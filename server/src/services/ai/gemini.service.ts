@@ -469,6 +469,53 @@ Output ONLY the plain text of the email reply (including greeting and sign-off).
     const reply = await this.callGemini(prompt, { temperature: 0.3, maxTokens: 800 });
     return { replyBody: reply.trim() };
   }
+
+  public async translateEmail(params: {
+    subject: string;
+    body: string;
+    targetLang?: 'ar' | 'en';
+  }): Promise<{ translatedSubject: string; translatedBody: string; targetLang: 'ar' | 'en' }> {
+    const isTargetArabic = params.targetLang ? params.targetLang === 'ar' : true;
+    const targetLangName = isTargetArabic ? 'Arabic' : 'English';
+
+    const prompt = `
+You are an expert bilingual professional translator.
+Translate the following email into ${targetLangName}.
+
+Subject:
+${params.subject}
+
+Body:
+${params.body.slice(0, 4000)}
+
+Rules:
+1. Translate both the subject and the body accurately and professionally into ${targetLangName}.
+2. If the body contains HTML tags (<p>, <br>, <strong>, <a>, <div>, etc.), preserve all HTML tags and attributes perfectly, and translate only the text inside.
+3. If it is plain text, keep natural paragraph formatting.
+
+Respond strictly in JSON format:
+{
+  "translatedSubject": "...",
+  "translatedBody": "..."
+}
+`;
+
+    const raw = await this.callGemini(prompt, { json: true, temperature: 0.2, maxTokens: 2048 });
+    try {
+      const parsed = JSON.parse(raw);
+      return {
+        translatedSubject: parsed.translatedSubject || params.subject,
+        translatedBody: parsed.translatedBody || params.body,
+        targetLang: isTargetArabic ? 'ar' : 'en',
+      };
+    } catch {
+      return {
+        translatedSubject: params.subject,
+        translatedBody: params.body,
+        targetLang: isTargetArabic ? 'ar' : 'en',
+      };
+    }
+  }
 }
 
 export const geminiService = new GeminiService();
