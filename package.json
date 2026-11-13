@@ -1,0 +1,23 @@
+{
+  "name": "contact-outreach-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Contact Outreach Platform (Free Stack) - Email & WhatsApp Outreach with PDF/CSV Parsing",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n \"server,client\" -c \"blue,green\" \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "test": "npm run test --prefix server",
+    "lint": "npm run lint --prefix server && npm run lint --prefix client",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prettier": "^3.5.3"
+  }
+}

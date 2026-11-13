@@ -1,0 +1,416 @@
+import { Router, Response } from 'express';
+import { z } from 'zod';
+import crypto from 'node:crypto';
+import { getDatabase } from '../db/connection.js';
+import { requireAuth, AuthRequest } from '../middlewares/auth.middleware.js';
+import { env } from '../config/env.js';
+import { campaignQueue } from '../services/queue/jobQueue.js';
+import { getEmailProvider } from '../services/email/providerFactory.js';
+import { getWhatsAppProvider } from '../services/whatsapp/providerFactory.js';
+import { renderTemplate } from './templates.routes.js';
+
+const router = Router();
+
+const createCampaignSchema = z.object({
+  name: z.string().min(1, 'Campaign name is required'),
+  channel: z.enum(['email', 'whatsapp']),
+  template_id: z.number().int().positive(),
+  is_dry_run: z.boolean().default(false),
+  contact_ids: z.array(z.number().int().positive()).min(1, 'At least one contact must be selected'),
+});
+
+// GET /api/campaigns
+router.get('/', requireAuth, (_req: AuthRequest, res: Response): void => {
+  const db = getDatabase();
+  const campaigns = db.prepare(`
+    SELECT 
+      c.*,
+      t.name as template_name,
+      t.subject as template_subject
+    FROM campaigns c
+    JOIN templates t ON t.id = c.template_id
+    ORDER BY c.id DESC
+  `).all();
+
+  res.json({ success: true, campaigns });
+});
+
+// GET /api/campaigns/:id
+router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
+  const db = getDatabase();
+  const campaign = db.prepare(`
+    SELECT 
+      c.*,
+      t.name as template_name,
+      t.subject as template_subject,
+      t.body as template_body
+    FROM campaigns c
+    JOIN templates t ON t.id = c.template_id
+    WHERE c.id = ?
+  `).get(req.params.id) as any;
+
+  if (!campaign) {
+    res.status(404).json({ success: false, error: 'Campaign not found' });
+    return;
+  }
+
+  // Fetch recipients breakdown
+  const stats = db.prepare(`
+    SELECT 
+      status, COUNT(*) as count 
+    FROM campaign_recipients 
+    WHERE campaign_id = ? 
+    GROUP BY status
+  `).all(req.params.id);
+
+  res.json({ success: true, campaign, stats });
+});
+
+// GET /api/campaigns/:id/recipients
+router.get('/:id/recipients', requireAuth, (req: AuthRequest, res: Response): void => {
+  const db = getDatabase();
+  const recipients = db.prepare(`
+    SELECT 
+      cr.id, cr.status, cr.error, cr.retry_count, cr.sent_at,
+      ct.person_name, ct.job_title, ct.email, ct.phone_mobile, ct.whatsapp_number,
+      c.name as company_name
+    FROM campaign_recipients cr
+    JOIN contacts ct ON ct.id = cr.contact_id
+    JOIN companies c ON c.id = ct.company_id
+    WHERE cr.campaign_id = ?
+    ORDER BY cr.id ASC
+  `).all(req.params.id);
+
+  res.json({ success: true, recipients });
+});
+
+// POST /api/campaigns
+router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
+  const parseResult = createCampaignSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ success: false, error: 'Validation failed', details: parseResult.error.format() });
+    return;
+  }
+
+  const { name, channel, template_id, is_dry_run, contact_ids } = parseResult.data;
+  const db = getDatabase();
+
+  // Verify template exists
+  const template = db.prepare('SELECT id, channel FROM templates WHERE id = ?').get(template_id) as
+    | { id: number; channel: string }
+    | undefined;
+
+  if (!template) {
+    res.status(400).json({ success: false, error: 'Template not found' });
+    return;
+  }
+
+  if (template.channel !== channel) {
+    res.status(400).json({ success: false, error: `Template channel (${template.channel}) does not match campaign channel (${channel})` });
+    return;
+  }
+
+  // Filter out contacts that are opted out or lack address
+  const uniqueContactIds = Array.from(new Set(contact_ids));
+
+  db.exec('BEGIN TRANSACTION;');
+
+  try {
+    const insertCampaign = db.prepare(`
+      INSERT INTO campaigns (name, channel, template_id, status, is_dry_run, total_recipients)
+      VALUES (?, ?, ?, 'draft', ?, ?)
+    `);
+
+    const campResult = insertCampaign.run(
+      name,
+      channel,
+      template_id,
+      is_dry_run ? 1 : 0,
+      uniqueContactIds.length
+    );
+
+    const campaignId = Number(campResult.lastInsertRowid);
+
+    const insertRecipient = db.prepare(`
+      INSERT INTO campaign_recipients (campaign_id, contact_id, status)
+      VALUES (?, ?, 'pending')
+    `);
+
+    for (const cId of uniqueContactIds) {
+      insertRecipient.run(campaignId, cId);
+    }
+
+    db.exec('COMMIT;');
+
+    res.status(201).json({
+      success: true,
+      campaignId,
+      message: `Campaign created with ${uniqueContactIds.length} recipients`,
+    });
+  } catch (err: any) {
+    db.exec('ROLLBACK;');
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/campaigns/:id/start
+router.post('/:id/start', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  const campaignId = parseInt(req.params.id, 10);
+  await campaignQueue.startCampaign(campaignId);
+  res.json({ success: true, message: 'Campaign started' });
+});
+
+// POST /api/campaigns/:id/pause
+router.post('/:id/pause', requireAuth, (req: AuthRequest, res: Response): void => {
+  const campaignId = parseInt(req.params.id, 10);
+  campaignQueue.pauseCampaign(campaignId);
+  res.json({ success: true, message: 'Campaign paused' });
+});
+
+// POST /api/campaigns/:id/resume
+router.post('/:id/resume', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  const campaignId = parseInt(req.params.id, 10);
+  await campaignQueue.resumeCampaign(campaignId);
+  res.json({ success: true, message: 'Campaign resumed' });
+});
+
+// POST /api/campaigns/:id/cancel
+router.post('/:id/cancel', requireAuth, (req: AuthRequest, res: Response): void => {
+  const campaignId = parseInt(req.params.id, 10);
+  campaignQueue.cancelCampaign(campaignId);
+  res.json({ success: true, message: 'Campaign cancelled' });
+});
+
+// POST /api/campaigns/test-send (Test send to own email or phone)
+const testSendSchema = z.object({
+  channel: z.enum(['email', 'whatsapp']),
+  template_id: z.number().int().positive(),
+  recipient_address: z.string().min(3),
+});
+
+router.post('/test-send', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  const parseResult = testSendSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ success: false, error: 'Validation failed', details: parseResult.error.format() });
+    return;
+  }
+
+  const { channel, template_id, recipient_address } = parseResult.data;
+  const db = getDatabase();
+
+  const template = db.prepare('SELECT subject, body FROM templates WHERE id = ?').get(template_id) as
+    | { subject: string | null; body: string }
+    | undefined;
+
+  if (!template) {
+    res.status(404).json({ success: false, error: 'Template not found' });
+    return;
+  }
+
+  const sampleVars = {
+    company_name: 'Test Partner Co.',
+    person_name: 'Dear Colleague',
+    job_title: 'Director',
+    website: 'https://example.com',
+    unsubscribe_url: 'http://localhost:5000/unsubscribe/test-sample-token',
+  };
+
+  const renderedSubject = template.subject ? `[TEST] ${renderTemplate(template.subject, sampleVars)}` : '[TEST Outreach]';
+  const renderedBody = renderTemplate(template.body, sampleVars);
+
+  if (channel === 'email') {
+    const provider = getEmailProvider();
+    const result = await provider.sendEmail({
+      to: recipient_address,
+      subject: renderedSubject,
+      html: renderedBody,
+      unsubscribeUrl: sampleVars.unsubscribe_url,
+    });
+
+    res.json({
+      success: result.success,
+      message: result.success ? `Test email dispatched to ${recipient_address}` : `Failed: ${result.error}`,
+      error: result.error,
+    });
+  } else {
+    const waProvider = getWhatsAppProvider();
+    const result = await waProvider.sendMessage({
+      to: recipient_address,
+      text: renderedBody,
+    });
+
+    res.json({
+      success: result.success,
+      clickToChatUrl: result.clickToChatUrl,
+      message: result.clickToChatUrl
+        ? `WhatsApp test prepared. Open link: ${result.clickToChatUrl}`
+        : 'Dispatched test message',
+    });
+  }
+});
+
+// POST /api/campaigns/send-direct
+const directSendSchema = z.object({
+  channel: z.enum(['email', 'whatsapp']).default('email'),
+  recipient_address: z.string().min(1, 'Recipient address is required'),
+  person_name: z.string().optional().default(''),
+  company_name: z.string().optional().default(''),
+  job_title: z.string().optional().default(''),
+  subject: z.string().optional().default(''),
+  body: z.string().min(1, 'Body is required'),
+  is_dry_run: z.boolean().default(false),
+  save_to_contacts: z.boolean().default(false),
+});
+
+router.post('/send-direct', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
+  const parseResult = directSendSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ success: false, error: 'Validation failed', details: parseResult.error.format() });
+    return;
+  }
+
+  const {
+    channel,
+    recipient_address,
+    person_name,
+    company_name,
+    job_title,
+    subject,
+    body,
+    is_dry_run,
+    save_to_contacts,
+  } = parseResult.data;
+
+  const db = getDatabase();
+
+  // Generate unsubscribe link
+  const unsubToken = crypto.randomUUID();
+  try {
+    db.prepare('INSERT INTO unsubscribes (token, identifier, channel, created_at) VALUES (?, ?, ?, datetime(\'now\'))')
+      .run(unsubToken, recipient_address, channel);
+  } catch {}
+
+  const unsubscribeUrl = `${env.UNSUBSCRIBE_BASE_URL || 'http://localhost:5000/unsubscribe'}/${unsubToken}`;
+
+  const vars = {
+    company_name: company_name || 'Valued Partner',
+    person_name: person_name || 'Dear Partner',
+    job_title: job_title || '',
+    email: recipient_address,
+    website: '',
+    unsubscribe_url: unsubscribeUrl,
+  };
+
+  const renderedSubject = subject ? renderTemplate(subject, vars) : 'Direct Outreach';
+  const renderedBody = renderTemplate(body, vars);
+
+  let sendSuccess = false;
+  let errorMsg: string | undefined;
+  let clickToChatUrl: string | undefined;
+  let providerResp: string | undefined;
+
+  if (is_dry_run) {
+    sendSuccess = true;
+    providerResp = 'Simulated direct dispatch (Dry Run)';
+  } else if (channel === 'email') {
+    const provider = getEmailProvider();
+    const result = await provider.sendEmail({
+      to: recipient_address,
+      subject: renderedSubject,
+      html: renderedBody,
+      unsubscribeUrl,
+    });
+    sendSuccess = result.success;
+    errorMsg = result.error;
+    providerResp = result.messageId ? `Message ID: ${result.messageId}` : undefined;
+  } else {
+    const waProvider = getWhatsAppProvider();
+    const result = await waProvider.sendMessage({
+      to: recipient_address,
+      text: renderedBody,
+    });
+    sendSuccess = result.success;
+    errorMsg = result.error;
+    clickToChatUrl = result.clickToChatUrl;
+    providerResp = clickToChatUrl ? 'Click-to-chat URL generated' : 'Sent';
+  }
+
+  // Find or optionally create contact & company for linking
+  let contactId: number | null = null;
+  try {
+    const existing = db.prepare(
+      'SELECT id FROM contacts WHERE (email = ? AND email IS NOT NULL) OR (whatsapp_number = ? AND whatsapp_number IS NOT NULL)'
+    ).get(recipient_address, recipient_address) as { id: number } | undefined;
+
+    if (existing) {
+      contactId = existing.id;
+    } else if (save_to_contacts || person_name || company_name) {
+      let companyId: number | null = null;
+      if (company_name) {
+        const existingCo = db.prepare('SELECT id FROM companies WHERE name = ?').get(company_name) as { id: number } | undefined;
+        if (existingCo) {
+          companyId = existingCo.id;
+        } else {
+          const ins = db.prepare("INSERT INTO companies (name, created_at, updated_at) VALUES (?, datetime('now'), datetime('now'))").run(company_name);
+          companyId = Number(ins.lastInsertRowid);
+        }
+      }
+
+      const ins = db.prepare(`
+        INSERT INTO contacts (company_id, person_name, job_title, email, whatsapp_number, consent_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'active', datetime('now'), datetime('now'))
+      `).run(
+        companyId,
+        person_name || null,
+        job_title || null,
+        channel === 'email' ? recipient_address : null,
+        channel === 'whatsapp' ? recipient_address : null
+      );
+      contactId = Number(ins.lastInsertRowid);
+    }
+  } catch (err: any) {
+    console.error('Contact resolution error:', err);
+  }
+
+  // Record in message_log
+  try {
+    db.prepare(`
+      INSERT INTO message_log (
+        campaign_id, contact_id, channel, recipient_address,
+        subject, rendered_body, status, provider_response, error, created_at
+      ) VALUES (
+        NULL, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now')
+      )
+    `).run(
+      contactId,
+      channel,
+      recipient_address,
+      channel === 'email' ? renderedSubject : null,
+      renderedBody,
+      is_dry_run ? 'dry_run' : sendSuccess ? 'sent' : 'failed',
+      providerResp || null,
+      errorMsg || null
+    );
+  } catch (err: any) {
+    console.error('Failed to log message:', err);
+  }
+
+  if (sendSuccess) {
+    res.json({
+      success: true,
+      clickToChatUrl,
+      message: clickToChatUrl
+        ? `WhatsApp message prepared. Click to chat: ${clickToChatUrl}`
+        : is_dry_run
+        ? `Dry run simulation logged successfully for ${recipient_address}`
+        : `Email dispatched successfully to ${recipient_address}!`,
+    });
+  } else {
+    res.status(400).json({
+      success: false,
+      error: errorMsg || 'Failed to dispatch email',
+    });
+  }
+});
+
+export default router;
