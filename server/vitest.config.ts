@@ -4,5 +4,8 @@ export default defineConfig({
   test: {
     fileParallelism: false,
     environment: 'node',
+    env: {
+      DATABASE_PATH: './data/test.db',
+    },
   },
 });

@@ -110,8 +110,58 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     return;
   }
 
-  // Filter out contacts that are opted out or lack address
+  // Filter out contacts that are opted out or lack address, and strictly deduplicate by recipient address
   const uniqueContactIds = Array.from(new Set(contact_ids));
+
+  if (uniqueContactIds.length === 0) {
+    res.status(400).json({ success: false, error: 'يجب اختيار جهة اتصال واحدة على الأقل' });
+    return;
+  }
+
+  // Fetch contact details to enforce single-send-per-address rule
+  const placeholders = uniqueContactIds.map(() => '?').join(',');
+  const selectedContacts = db.prepare(`
+    SELECT id, email, phone_mobile, whatsapp_number, opted_out
+    FROM contacts
+    WHERE id IN (${placeholders})
+  `).all(...uniqueContactIds) as Array<{
+    id: number;
+    email: string | null;
+    phone_mobile: string | null;
+    whatsapp_number: string | null;
+    opted_out: number;
+  }>;
+
+  const seenAddresses = new Set<string>();
+  const finalContactIds: number[] = [];
+
+  for (const c of selectedContacts) {
+    let targetAddress: string | null = null;
+    if (channel === 'email') {
+      targetAddress = c.email ? c.email.trim().toLowerCase() : null;
+      if (!targetAddress || !targetAddress.includes('@')) continue;
+    } else {
+      const wa = c.whatsapp_number || c.phone_mobile;
+      targetAddress = wa ? wa.replace(/\D/g, '') : null;
+      if (!targetAddress || targetAddress.length < 7) continue;
+    }
+
+    // STRICT DEDUPLICATION: Only allow each email/phone to be added ONCE per campaign!
+    if (seenAddresses.has(targetAddress)) {
+      continue;
+    }
+
+    seenAddresses.add(targetAddress);
+    finalContactIds.push(c.id);
+  }
+
+  if (finalContactIds.length === 0) {
+    res.status(400).json({
+      success: false,
+      error: 'لا توجد جهات اتصال صالحة للإرسال بالقناة المحددة، أو جميعها مكررة أو غير مجهزة بعنوان إرسال.',
+    });
+    return;
+  }
 
   db.exec('BEGIN TRANSACTION;');
 
@@ -126,7 +176,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
       channel,
       template_id,
       is_dry_run ? 1 : 0,
-      uniqueContactIds.length
+      finalContactIds.length
     );
 
     const campaignId = Number(campResult.lastInsertRowid);
@@ -136,7 +186,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
       VALUES (?, ?, 'pending')
     `);
 
-    for (const cId of uniqueContactIds) {
+    for (const cId of finalContactIds) {
       insertRecipient.run(campaignId, cId);
     }
 
@@ -145,7 +195,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     res.status(201).json({
       success: true,
       campaignId,
-      message: `Campaign created with ${uniqueContactIds.length} recipients`,
+      message: `تم إنشاء الحملة بنجاح مع ${finalContactIds.length} مستلم فريد بدون أي تكرار.`,
     });
   } catch (err: any) {
     db.exec('ROLLBACK;');

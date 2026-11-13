@@ -184,12 +184,27 @@ export const Campaigns: React.FC = () => {
     }
   };
 
-  // Candidates for Wizard Recipient Selection
-  const eligibleContacts = contacts.filter((c) => {
-    if (c.opted_out === 1) return false;
-    if (newCampaign.channel === 'email') return Boolean(c.email);
-    return Boolean(c.whatsapp_number || c.phone_mobile);
-  });
+  // Candidates for Wizard Recipient Selection (Strict Address Deduplication)
+  const eligibleContacts = React.useMemo(() => {
+    const seen = new Set<string>();
+    const result: Contact[] = [];
+
+    for (const c of contacts) {
+      if (c.opted_out === 1) continue;
+      const addr = newCampaign.channel === 'email'
+        ? (c.email ? c.email.trim().toLowerCase() : null)
+        : (c.whatsapp_number || c.phone_mobile ? String(c.whatsapp_number || c.phone_mobile).replace(/\D/g, '') : null);
+
+      if (!addr) continue;
+      if (newCampaign.channel === 'email' && !addr.includes('@')) continue;
+
+      if (!seen.has(addr)) {
+        seen.add(addr);
+        result.push(c);
+      }
+    }
+    return result;
+  }, [contacts, newCampaign.channel]);
 
   const selectAllEligible = () => {
     setNewCampaign((prev) => ({

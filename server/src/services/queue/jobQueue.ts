@@ -208,6 +208,33 @@ class CampaignQueueEngine {
       return;
     }
 
+    // Strict runtime deduplication: Ensure no address is ever sent more than once per campaign
+    const normalizedTarget = campaign.channel === 'email'
+      ? targetAddress.trim().toLowerCase()
+      : targetAddress.replace(/\D/g, '');
+
+    const alreadySentInThisCampaign = db.prepare(`
+      SELECT id FROM message_log 
+      WHERE campaign_id = ? 
+        AND status IN ('sent', 'dry_run')
+        AND (
+          (channel = 'email' AND LOWER(TRIM(recipient_address)) = ?) OR
+          (channel = 'whatsapp' AND REPLACE(REPLACE(REPLACE(recipient_address, ' ', ''), '-', ''), '+', '') = ?)
+        )
+      LIMIT 1
+    `).get(campaign.id, normalizedTarget, normalizedTarget);
+
+    if (alreadySentInThisCampaign) {
+      logger.warn({ campaignId: campaign.id, targetAddress }, 'Duplicate recipient address detected in campaign runner. Skipping duplicate send.');
+      db.prepare(`
+        UPDATE campaign_recipients 
+        SET status = 'skipped', error = 'تم تخطي هذا المستلم لتجنب التكرار (تم الإرسال له مسبقاً في هذه الحملة)' 
+        WHERE id = ?
+      `).run(recipient.id);
+      db.prepare(`UPDATE campaigns SET skipped_count = skipped_count + 1 WHERE id = ?`).run(campaign.id);
+      return;
+    }
+
     // Fetch Template
     const template = db.prepare('SELECT subject, body FROM templates WHERE id = ?').get(campaign.template_id) as
       | { subject: string | null; body: string }
