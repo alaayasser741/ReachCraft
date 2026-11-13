@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   History,
   Trash2,
+  Lock,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -650,29 +651,24 @@ export const Campaigns: React.FC = () => {
                       </div>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setNewCampaign({
-                          ...newCampaign,
-                          channel: 'whatsapp',
-                          selectedContactIds: [],
-                        })
-                      }
-                      className={`p-3 rounded-xl border text-left rtl:text-right flex items-start gap-3 transition-all ${
-                        newCampaign.channel === 'whatsapp'
-                          ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 ring-2 ring-emerald-500'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-600'
-                      }`}
+                    <div
+                      title="ميزة حملات الواتساب قيد التطوير والتجهيز للربط السحابي الرسمي (قريباً)"
+                      className="relative p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 text-slate-400 opacity-60 cursor-not-allowed text-left rtl:text-right flex items-start gap-3 select-none"
                     >
-                      <MessageSquare className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+                      <div className="absolute top-2.5 left-2.5 rtl:left-auto rtl:right-2.5">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-extrabold flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" />
+                          {t('common.soon')}
+                        </span>
+                      </div>
+                      <MessageSquare className="w-5 h-5 text-slate-400 mt-0.5 shrink-0" />
                       <div>
                         <div className="font-bold text-xs">{t('campaigns.whatsAppChannelTitle')}</div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-[11px] text-slate-400">
                           {t('campaigns.whatsAppChannelSubtitle')}
                         </div>
                       </div>
-                    </button>
+                    </div>
                   </div>
                 </div>
 
@@ -988,12 +984,15 @@ export const Campaigns: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTestSendChannel('whatsapp')}
-                  className={`py-1.5 text-xs font-bold rounded-lg border ${
-                    testSendChannel === 'whatsapp' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200'
-                  }`}
+                  disabled
+                  title="إرسال الواتساب التجريبي قيد التطوير (قريباً)"
+                  className="py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-800/40 text-slate-400 opacity-60 cursor-not-allowed flex items-center justify-center gap-1.5 select-none"
                 >
-                  {t('templates.whatsAppChannel')}
+                  <span>{t('templates.whatsAppChannel')}</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-extrabold flex items-center gap-0.5">
+                    <Lock className="w-2.5 h-2.5" />
+                    {t('common.soon')}
+                  </span>
                 </button>
               </div>
             </div>

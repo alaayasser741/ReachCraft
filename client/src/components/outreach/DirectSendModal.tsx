@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Mail, MessageSquare, Send, Sparkles, UserCheck, Eye, ShieldCheck, Check, AlertTriangle, CheckCircle2, X, Wand2, RotateCcw } from 'lucide-react';
+import { Mail, MessageSquare, Send, Sparkles, UserCheck, Eye, ShieldCheck, Check, AlertTriangle, CheckCircle2, X, Wand2, RotateCcw, Lock } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -294,15 +294,16 @@ export const DirectSendModal: React.FC<DirectSendModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => handleChannelSwitch('whatsapp')}
-              className={`py-1.5 px-3 rounded-xl border text-xs font-bold flex flex-row items-center justify-center gap-2 transition-all ${
-                channel === 'whatsapp'
-                  ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 ring-2 ring-emerald-500'
-                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-              }`}
+              disabled
+              title="ميزة إرسال الواتساب قيد التطوير والتجهيز للربط السحابي الرسمي (قريباً)"
+              className="py-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-800/40 text-slate-400 cursor-not-allowed opacity-60 flex flex-row items-center justify-center gap-1.5 transition-all select-none"
             >
-              <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+              <MessageSquare className="w-3.5 h-3.5 shrink-0 text-slate-400" />
               <span>{t('templates.whatsAppChannel')}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-extrabold flex items-center gap-1">
+                <Lock className="w-2.5 h-2.5" />
+                {t('common.soon')}
+              </span>
             </button>
           </div>
         </div>

@@ -189,4 +189,47 @@ describe('Campaigns & Queue Engine Integration', () => {
 
     expect(deleteAgainRes.status).toBe(404);
   });
+
+  it('Blocks WhatsApp campaign creation and direct send as Coming Soon', async () => {
+    // 1. Attempt to create WhatsApp campaign
+    const createWaCamp = await request(app)
+      .post('/api/campaigns')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        name: 'WhatsApp Outreach Attempt',
+        channel: 'whatsapp',
+        template_id: 1,
+        is_dry_run: true,
+        contact_ids: [1],
+      });
+
+    expect(createWaCamp.status).toBe(400);
+    expect(createWaCamp.body.error).toContain('قناة الواتساب معطلة حالياً');
+
+    // 2. Attempt to direct-send WhatsApp
+    const directWaSend = await request(app)
+      .post('/api/campaigns/send-direct')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        channel: 'whatsapp',
+        recipient_address: '+201012345678',
+        body: 'Hello via WhatsApp',
+      });
+
+    expect(directWaSend.status).toBe(400);
+    expect(directWaSend.body.error).toContain('إرسال الواتساب المباشر معطل');
+
+    // 3. Attempt to create WhatsApp template
+    const createWaTmpl = await request(app)
+      .post('/api/templates')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        name: 'WhatsApp Promo',
+        channel: 'whatsapp',
+        body: 'Hi {{person_name}}',
+      });
+
+    expect(createWaTmpl.status).toBe(400);
+    expect(createWaTmpl.body.error).toContain('إنشاء قوالب الواتساب معطل');
+  });
 });

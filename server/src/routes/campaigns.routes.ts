@@ -159,6 +159,15 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   const { name, channel, template_id, is_dry_run, contact_ids, exclude_previously_contacted } = parseResult.data;
+
+  if (channel === 'whatsapp') {
+    res.status(400).json({
+      success: false,
+      error: 'قناة الواتساب معطلة حالياً وقيد التطوير للربط السحابي الرسمي (قادمة قريباً). يرجى استخدام البريد الإلكتروني.',
+    });
+    return;
+  }
+
   const db = getDatabase();
 
   // Verify template exists
@@ -446,6 +455,15 @@ router.post('/test-send', requireAuth, async (req: AuthRequest, res: Response): 
   }
 
   const { channel, template_id, recipient_address } = parseResult.data;
+
+  if (channel === 'whatsapp') {
+    res.status(400).json({
+      success: false,
+      error: 'الإرسال التجريبي للواتساب معطل حالياً وقيد التطوير (الميزة قادمة قريباً).',
+    });
+    return;
+  }
+
   const db = getDatabase();
 
   const template = db.prepare('SELECT subject, body FROM templates WHERE id = ?').get(template_id) as
@@ -547,6 +565,14 @@ router.post('/send-direct', requireAuth, async (req: AuthRequest, res: Response)
     save_to_contacts,
   } = parseResult.data;
 
+  if (channel === 'whatsapp') {
+    res.status(400).json({
+      success: false,
+      error: 'إرسال الواتساب المباشر معطل حالياً وقيد التطوير للربط السحابي (قريباً).',
+    });
+    return;
+  }
+
   const db = getDatabase();
 
   // Generate unsubscribe link
@@ -630,7 +656,7 @@ router.post('/send-direct', requireAuth, async (req: AuthRequest, res: Response)
         person_name || null,
         job_title || null,
         channel === 'email' ? recipient_address : null,
-        channel === 'whatsapp' ? recipient_address : null
+        (channel as string) === 'whatsapp' ? recipient_address : null
       );
       contactId = Number(ins.lastInsertRowid);
     }

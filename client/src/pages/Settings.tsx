@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   Key,
+  Lock,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -385,41 +386,58 @@ export const Settings: React.FC = () => {
           </div>
         </Card>
 
-        {/* WhatsApp Provider Card */}
-        <Card className="p-6 space-y-6">
-          <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shrink-0">
-              <MessageSquare className="w-5 h-5" />
+        {/* WhatsApp Provider Card (Disabled / Coming Soon) */}
+        <Card className="p-6 space-y-6 relative overflow-hidden border-amber-200/60 dark:border-amber-800/40">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-850 text-slate-500 flex items-center justify-center shrink-0">
+                <MessageSquare className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    {t('settings.whatsAppCardTitle')}
+                  </h3>
+                  <Badge variant="warning" size="sm" icon={<Lock className="w-3 h-3" />}>
+                    {t('common.soon') || 'قريباً'}
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-400">
+                  {t('settings.whatsAppCardSubtitle')}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {t('settings.whatsAppCardTitle')}
-              </h3>
-              <p className="text-xs text-slate-400">
-                {t('settings.whatsAppCardSubtitle')}
+          </div>
+
+          {/* Coming Soon Notice */}
+          <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 flex items-start gap-3">
+            <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+              <p className="font-bold">
+                {dir === 'rtl' ? 'قناة الواتساب معطلة حالياً (قادمة قريباً)' : 'WhatsApp Channel is currently disabled (Coming Soon)'}
+              </p>
+              <p className="text-amber-700 dark:text-amber-400 mt-0.5">
+                {dir === 'rtl'
+                  ? 'يتم العمل حالياً على تجهيز الربط السحابي الرسمي (Meta Cloud API / Baileys QR). الإعدادات أدناه معطلة مؤقتاً حتى اكتمال الربط.'
+                  : 'We are currently preparing official cloud connectivity (Meta Cloud API / Baileys QR). Settings below are temporarily locked until integration is complete.'}
               </p>
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 opacity-50 pointer-events-none select-none">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 {t('settings.whatsAppModeLabel')}
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div
-                  onClick={() => setSettings({ ...settings, whatsapp_provider: 'click-to-chat' })}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                    settings.whatsapp_provider === 'click-to-chat'
-                      ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 ring-2 ring-emerald-500'
-                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-                  }`}
+                  className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs text-slate-900 dark:text-white">
                       {t('settings.clickToChatTitle')}
                     </span>
-                    <Badge variant="success" size="sm">
+                    <Badge variant="slate" size="sm">
                       {t('settings.clickToChatBadge')}
                     </Badge>
                   </div>
@@ -429,18 +447,13 @@ export const Settings: React.FC = () => {
                 </div>
 
                 <div
-                  onClick={() => setSettings({ ...settings, whatsapp_provider: 'session' })}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                    settings.whatsapp_provider === 'session'
-                      ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 ring-2 ring-emerald-500'
-                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50'
-                  }`}
+                  className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700"
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs text-slate-900 dark:text-white">
                       {t('settings.sessionTitle')}
                     </span>
-                    <Badge variant="warning" size="sm">
+                    <Badge variant="slate" size="sm">
                       {t('settings.sessionBadge')}
                     </Badge>
                   </div>
@@ -458,23 +471,19 @@ export const Settings: React.FC = () => {
                 </label>
                 <input
                   type="number"
+                  disabled
                   value={settings.whatsapp_daily_cap}
-                  onChange={(e) =>
-                    setSettings({ ...settings, whatsapp_daily_cap: parseInt(e.target.value, 10) })
-                  }
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono"
                   dir="ltr"
                 />
               </div>
 
               <div className="flex items-center pt-5">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
                   <input
                     type="checkbox"
+                    disabled
                     checked={settings.whatsapp_warmup}
-                    onChange={(e) =>
-                      setSettings({ ...settings, whatsapp_warmup: e.target.checked })
-                    }
                     className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4"
                   />
                   <span>{t('settings.warmupModeLabel')}</span>

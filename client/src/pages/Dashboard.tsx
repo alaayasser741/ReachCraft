@@ -11,6 +11,7 @@ import {
   ArrowUpRight,
   Shield,
   FileCheck2,
+  Lock,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -165,18 +166,24 @@ export const Dashboard: React.FC = () => {
         <motion.div variants={itemVariants}>
           <Card className="p-5" hoverEffect>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                {t('dashboard.whatsappCandidates')}
-              </span>
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  {t('dashboard.whatsappCandidates')}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 font-semibold inline-flex items-center gap-0.5">
+                  <Lock className="w-2.5 h-2.5" />
+                  {t('common.soon') || 'قريباً'}
+                </span>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 flex items-center justify-center">
                 <MessageSquare className="w-5 h-5" />
               </div>
             </div>
             <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
               {isLoading ? '...' : stats.withWhatsApp}
             </p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">
-              {t('dashboard.whatsappCandidatesDesc')}
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-medium">
+              {dir === 'rtl' ? 'ميزة الإرسال قادمة قريباً' : 'Outreach coming soon'}
             </p>
           </Card>
         </motion.div>
@@ -237,22 +244,18 @@ export const Dashboard: React.FC = () => {
               </div>
 
               {/* WhatsApp Provider Pill */}
-              <div className="p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
+              <div className="p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 opacity-80">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="font-semibold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-emerald-600" />
+                    <MessageSquare className="w-4 h-4 text-slate-500" />
                     <span>{t('dashboard.whatsAppMode')}</span>
                   </span>
-                  <Badge variant="brand" size="sm">
-                    {settings?.whatsapp_provider === 'click-to-chat'
-                      ? 'Click-to-chat'
-                      : 'Session'}
+                  <Badge variant="warning" size="sm" icon={<Lock className="w-2.5 h-2.5" />}>
+                    {t('common.soon') || 'قريباً'}
                   </Badge>
                 </div>
                 <p className="text-xs text-slate-500">
-                  {settings?.whatsapp_provider === 'click-to-chat'
-                    ? t('dashboard.whatsAppClickToChatDesc')
-                    : t('dashboard.whatsAppSessionDesc')}
+                  {dir === 'rtl' ? 'قناة الواتساب معطلة حالياً وقيد التطوير للربط السحابي' : 'WhatsApp channel is currently disabled & under development'}
                 </p>
               </div>
             </div>

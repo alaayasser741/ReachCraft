@@ -79,6 +79,15 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   const { name, channel, subject, body } = parseResult.data;
+
+  if (channel === 'whatsapp') {
+    res.status(400).json({
+      success: false,
+      error: 'إنشاء قوالب الواتساب معطل حالياً (الميزة قادمة قريباً).',
+    });
+    return;
+  }
+
   const db = getDatabase();
 
   const result = db.prepare(`
@@ -113,6 +122,14 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
   const tmpl = db.prepare('SELECT name, channel FROM templates WHERE id = ?').get(req.params.id) as any;
   const updates = parseResult.data;
+
+  if (updates.channel === 'whatsapp') {
+    res.status(400).json({
+      success: false,
+      error: 'تعديل القالب إلى قناة الواتساب معطل حالياً (الميزة قادمة قريباً).',
+    });
+    return;
+  }
   const fields: string[] = [];
   const params: any[] = [];
 

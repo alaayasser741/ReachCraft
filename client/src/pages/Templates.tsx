@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Wand2,
   RotateCcw,
+  Lock,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -301,17 +302,17 @@ export const Templates: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Badge
-                      variant={tmpl.channel === 'email' ? 'brand' : 'success'}
+                      variant={tmpl.channel === 'email' ? 'brand' : 'warning'}
                       size="sm"
                       icon={
                         tmpl.channel === 'email' ? (
                           <Mail className="w-3 h-3" />
                         ) : (
-                          <MessageSquare className="w-3 h-3" />
+                          <Lock className="w-3 h-3" />
                         )
                       }
                     >
-                      {tmpl.channel === 'email' ? t('templates.emailChannel') : t('templates.whatsAppChannel')}
+                      {tmpl.channel === 'email' ? t('templates.emailChannel') : `${t('templates.whatsAppChannel')} (${t('common.soon') || 'قريباً'})`}
                     </Badge>
 
                     {tmpl.is_default === 1 && (
@@ -424,17 +425,16 @@ export const Templates: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setEditingTemplate({ ...editingTemplate, channel: 'whatsapp' })
-                    }
-                    className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-                      editingTemplate.channel === 'whatsapp'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700'
-                    }`}
+                    disabled
+                    className="py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/40 cursor-not-allowed opacity-60 text-xs font-semibold flex items-center justify-center gap-1.5"
+                    title={t('common.soon') || 'قريباً'}
                   >
                     <MessageSquare className="w-4 h-4" />
                     <span>{t('templates.whatsAppChannel')}</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 font-medium">
+                      <Lock className="w-2.5 h-2.5" />
+                      {t('common.soon') || 'قريباً'}
+                    </span>
                   </button>
                 </div>
               </div>
