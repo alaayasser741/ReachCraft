@@ -147,6 +147,17 @@ export interface MessageLog {
   created_at: string;
 }
 
+export interface ActivityLog {
+  id: number;
+  category: 'campaign' | 'contact' | 'company' | 'message' | 'file' | 'template' | 'auth' | 'settings';
+  action: 'create' | 'update' | 'delete' | 'start' | 'pause' | 'resume' | 'cancel' | 'send' | 'upload' | 'confirm' | 'login' | 'logout' | 'import';
+  title: string;
+  details: string | null;
+  status: 'success' | 'warning' | 'failed' | 'info';
+  ip_address: string | null;
+  created_at: string;
+}
+
 export interface AppSettings {
   smtp_host: string;
   smtp_port: number;

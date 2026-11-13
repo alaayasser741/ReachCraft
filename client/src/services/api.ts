@@ -6,6 +6,7 @@ import {
   Campaign,
   CampaignRecipient,
   MessageLog,
+  ActivityLog,
   AppSettings,
   ParseResult,
   ParsedCompany,
@@ -274,14 +275,55 @@ export const api = {
     }),
 
   // Logs
-  getLogs: (params?: { campaignId?: number; channel?: string; status?: string; search?: string; limit?: number }) => {
+  getActivityLogs: (params?: {
+    category?: string;
+    action?: string;
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.category) query.append('category', params.category);
+    if (params?.action) query.append('action', params.action);
+    if (params?.status) query.append('status', params.status);
+    if (params?.search) query.append('search', params.search);
+    if (params?.page !== undefined) query.append('page', String(params.page));
+    if (params?.limit !== undefined) query.append('limit', String(params.limit));
+    return request<{
+      success: boolean;
+      count: number;
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+      activities: ActivityLog[];
+    }>(`/logs/activity?${query.toString()}`);
+  },
+  getLogs: (params?: {
+    campaignId?: number;
+    channel?: string;
+    status?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) => {
     const query = new URLSearchParams();
     if (params?.campaignId) query.append('campaignId', String(params.campaignId));
     if (params?.channel) query.append('channel', params.channel);
     if (params?.status) query.append('status', params.status);
     if (params?.search) query.append('search', params.search);
-    if (params?.limit) query.append('limit', String(params.limit));
-    return request<{ success: boolean; count: number; logs: MessageLog[] }>(`/logs?${query.toString()}`);
+    if (params?.page !== undefined) query.append('page', String(params.page));
+    if (params?.limit !== undefined) query.append('limit', String(params.limit));
+    return request<{
+      success: boolean;
+      count: number;
+      total?: number;
+      page?: number;
+      limit?: number;
+      totalPages?: number;
+      logs: MessageLog[];
+    }>(`/logs?${query.toString()}`);
   },
   getLogStats: () =>
     request<{ success: boolean; stats: any }>('/logs/stats'),

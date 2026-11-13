@@ -154,6 +154,21 @@ export function runMigrations(): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL,
+      action TEXT NOT NULL,
+      title TEXT NOT NULL,
+      details TEXT,
+      status TEXT NOT NULL DEFAULT 'success',
+      ip_address TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_activity_log_category ON activity_log(category);
+    CREATE INDEX IF NOT EXISTS idx_activity_log_action ON activity_log(action);
+    CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at);
+
     CREATE INDEX IF NOT EXISTS idx_contacts_company_id ON contacts(company_id);
     CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(email);
     CREATE INDEX IF NOT EXISTS idx_contacts_phone_mobile ON contacts(phone_mobile);
@@ -188,6 +203,8 @@ export function runMigrations(): void {
   seedDefaultTemplates();
   // Seed Gemini Settings
   seedGeminiSettings();
+  // Seed Historical Activity Logs
+  seedActivityLogs();
 
   logger.info('Database schema initialized successfully.');
 }
@@ -294,5 +311,58 @@ function seedGeminiSettings(): void {
     db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('gemini_api_key', ?)").run(env.GEMINI_API_KEY);
     db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('gemini_model', ?)").run(env.GEMINI_MODEL || 'gemini-3.5-flash-lite');
     logger.info('Seeded Gemini API settings in database');
+  }
+}
+
+function seedActivityLogs(): void {
+  const db = getDatabase();
+  try {
+    const actCount = (db.prepare('SELECT COUNT(*) as c FROM activity_log').get() as { c: number })?.c || 0;
+    if (actCount === 0) {
+      // 1. Initial admin setup
+      db.prepare(`
+        INSERT INTO activity_log (category, action, title, details, status, created_at)
+        VALUES ('auth', 'login', 'إعداد النظام وتهيئة الحساب الإداري الرئيسي', '{"user":"admin@outreach.local"}', 'success', datetime('now', '-2 days'))
+      `).run();
+
+      // 2. Uploaded files
+      const files = db.prepare('SELECT id, original_name, status, parsed_count, uploaded_at FROM uploaded_files').all() as any[];
+      for (const f of files) {
+        db.prepare(`
+          INSERT INTO activity_log (category, action, title, details, status, created_at)
+          VALUES ('file', 'upload', ?, ?, 'success', ?)
+        `).run(
+          `رفع ملف وتحليله: "${f.original_name}"`,
+          JSON.stringify({ fileId: f.id, parsedCount: f.parsed_count }),
+          f.uploaded_at || new Date().toISOString()
+        );
+
+        if (f.status === 'confirmed') {
+          db.prepare(`
+            INSERT INTO activity_log (category, action, title, details, status, created_at)
+            VALUES ('file', 'confirm', ?, ?, 'success', ?)
+          `).run(
+            `تأكيد واستيراد ملف: "${f.original_name}" إلى قاعدة البيانات`,
+            JSON.stringify({ fileId: f.id, count: f.parsed_count }),
+            f.uploaded_at || new Date().toISOString()
+          );
+        }
+      }
+
+      // 3. Templates
+      const tmpls = db.prepare('SELECT id, name, channel, created_at FROM templates').all() as any[];
+      for (const t of tmpls) {
+        db.prepare(`
+          INSERT INTO activity_log (category, action, title, details, status, created_at)
+          VALUES ('template', 'create', ?, ?, 'success', ?)
+        `).run(
+          `إنشاء قالب تواصل: "${t.name}" (${t.channel})`,
+          JSON.stringify({ templateId: t.id, channel: t.channel }),
+          t.created_at || new Date().toISOString()
+        );
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Failed to seed activity_log');
   }
 }

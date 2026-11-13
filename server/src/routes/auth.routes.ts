@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { getDatabase } from '../db/connection.js';
 import { requireAuth, AuthRequest } from '../middlewares/auth.middleware.js';
+import { logActivity } from '../services/activityLogger.js';
 
 const router = Router();
 
@@ -47,6 +48,13 @@ router.post('/login', (req: Request, res: Response): void => {
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
+  logActivity({
+    category: 'auth',
+    action: 'login',
+    title: `تسجيل دخول مدير النظام: ${user.email}`,
+    ip: req.ip,
+  });
+
   res.json({
     success: true,
     user: { id: user.id, email: user.email },
@@ -56,6 +64,11 @@ router.post('/login', (req: Request, res: Response): void => {
 
 router.post('/logout', (_req: Request, res: Response): void => {
   res.clearCookie('token');
+  logActivity({
+    category: 'auth',
+    action: 'logout',
+    title: 'تسجيل خروج من لوحة التحكم',
+  });
   res.json({ success: true, message: 'Logged out successfully' });
 });
 

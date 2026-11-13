@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
 import { requireAuth, AuthRequest } from '../middlewares/auth.middleware.js';
+import { logActivity } from '../services/activityLogger.js';
 
 const router = Router();
 
@@ -225,6 +226,8 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const fields: string[] = [];
   const params: any[] = [];
 
+  const existing = db.prepare('SELECT person_name, email, phone_mobile FROM contacts WHERE id = ?').get(contactId) as any;
+
   Object.entries(updates).forEach(([key, val]) => {
     if (val !== undefined) {
       fields.push(`${key} = ?`);
@@ -242,13 +245,30 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
 
   db.prepare(`UPDATE contacts SET ${fields.join(', ')} WHERE id = ?`).run(...params);
 
+  logActivity({
+    category: 'contact',
+    action: 'update',
+    title: `تعديل بيانات جهة الاتصال: ${existing?.person_name || existing?.email || `#${contactId}`}`,
+    details: updates,
+  });
+
   res.json({ success: true, message: 'Contact updated successfully' });
 });
 
 // DELETE /api/contacts/:id
 router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const existing = db.prepare('SELECT person_name, email, phone_mobile FROM contacts WHERE id = ?').get(req.params.id) as any;
   db.prepare(`DELETE FROM contacts WHERE id = ?`).run(req.params.id);
+
+  logActivity({
+    category: 'contact',
+    action: 'delete',
+    title: `حذف جهة اتصال: ${existing?.person_name || existing?.email || `#${req.params.id}`}`,
+    details: existing || null,
+    status: 'warning',
+  });
+
   res.json({ success: true, message: 'Contact deleted successfully' });
 });
 

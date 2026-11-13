@@ -7,6 +7,7 @@ import { requireAuth, AuthRequest } from '../middlewares/auth.middleware.js';
 import { parsePdfBuffer } from '../services/parser/pdfParser.js';
 import { parseCsvBuffer, parseXlsxBuffer } from '../services/parser/tabularParser.js';
 import { ParseResult, ParsedCompany } from '../services/parser/types.js';
+import { logActivity } from '../services/activityLogger.js';
 
 const router = Router();
 
@@ -89,6 +90,13 @@ router.post('/upload', requireAuth, upload.single('file'), async (req: AuthReque
 
     const fileId = Number(result.lastInsertRowid);
 
+    logActivity({
+      category: 'file',
+      action: 'upload',
+      title: `رفع ملف وتحليله: "${originalName}"`,
+      details: { fileId, fileSize, format: ext, totalCompanies: parseResult.totalCompanies },
+    });
+
     res.json({
       success: true,
       fileId,
@@ -161,8 +169,8 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
 
   const db = getDatabase();
 
-  const file = db.prepare('SELECT id, status FROM uploaded_files WHERE id = ?').get(fileId) as
-    | { id: number; status: string }
+  const file = db.prepare('SELECT id, status, original_name FROM uploaded_files WHERE id = ?').get(fileId) as
+    | { id: number; status: string; original_name: string }
     | undefined;
 
   if (!file) {
@@ -342,6 +350,13 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
     `).run(savedCompaniesCount, fileId);
 
     db.exec('COMMIT;');
+
+    logActivity({
+      category: 'file',
+      action: 'confirm',
+      title: `تأكيد واستيراد ملف: "${file.original_name}"`,
+      details: { fileId, savedCompaniesCount, savedContactsCount },
+    });
 
     res.json({
       success: true,

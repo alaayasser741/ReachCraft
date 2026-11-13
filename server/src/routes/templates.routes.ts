@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
 import { requireAuth, AuthRequest } from '../middlewares/auth.middleware.js';
+import { logActivity } from '../services/activityLogger.js';
 
 const router = Router();
 
@@ -46,6 +47,13 @@ router.post('/:id/set-default', requireAuth, (req: AuthRequest, res: Response): 
   db.prepare('UPDATE templates SET is_default = 0 WHERE channel = ?').run(template.channel);
   db.prepare('UPDATE templates SET is_default = 1 WHERE id = ?').run(template.id);
 
+  logActivity({
+    category: 'template',
+    action: 'update',
+    title: `تعيين قالب كافتراضي لقناة (${template.channel})`,
+    details: { templateId: template.id, channel: template.channel },
+  });
+
   res.json({ success: true, message: 'Template set as default successfully' });
 });
 
@@ -78,9 +86,18 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     VALUES (?, ?, ?, ?)
   `).run(name, channel, subject || null, body);
 
+  const templateId = Number(result.lastInsertRowid);
+
+  logActivity({
+    category: 'template',
+    action: 'create',
+    title: `إنشاء قالب جديد: "${name}" (${channel})`,
+    details: { templateId, name, channel, subject },
+  });
+
   res.status(201).json({
     success: true,
-    templateId: Number(result.lastInsertRowid),
+    templateId,
     message: 'Template created successfully',
   });
 });
@@ -94,6 +111,7 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   const db = getDatabase();
+  const tmpl = db.prepare('SELECT name, channel FROM templates WHERE id = ?').get(req.params.id) as any;
   const updates = parseResult.data;
   const fields: string[] = [];
   const params: any[] = [];
@@ -114,13 +132,31 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   params.push(req.params.id);
 
   db.prepare(`UPDATE templates SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+
+  logActivity({
+    category: 'template',
+    action: 'update',
+    title: `تعديل القالب: "${updates.name || tmpl?.name || `#${req.params.id}`}"`,
+    details: updates,
+  });
+
   res.json({ success: true, message: 'Template updated successfully' });
 });
 
 // DELETE /api/templates/:id
 router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const tmpl = db.prepare('SELECT name, channel FROM templates WHERE id = ?').get(req.params.id) as any;
   db.prepare('DELETE FROM templates WHERE id = ?').run(req.params.id);
+
+  logActivity({
+    category: 'template',
+    action: 'delete',
+    title: `حذف قالب: "${tmpl?.name || `#${req.params.id}`}"`,
+    details: tmpl || null,
+    status: 'warning',
+  });
+
   res.json({ success: true, message: 'Template deleted successfully' });
 });
 

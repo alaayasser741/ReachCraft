@@ -8,6 +8,7 @@ import { campaignQueue } from '../services/queue/jobQueue.js';
 import { getEmailProvider } from '../services/email/providerFactory.js';
 import { getWhatsAppProvider } from '../services/whatsapp/providerFactory.js';
 import { renderTemplate } from './templates.routes.js';
+import { logActivity } from '../services/activityLogger.js';
 
 const router = Router();
 
@@ -276,6 +277,19 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
 
     db.exec('COMMIT;');
 
+    logActivity({
+      category: 'campaign',
+      action: 'create',
+      title: `إنشاء حملة جديدة: "${name}"`,
+      details: {
+        campaignId,
+        channel,
+        template_id,
+        recipientsCount: finalContactIds.length,
+        is_dry_run,
+      },
+    });
+
     res.status(201).json({
       success: true,
       campaignId,
@@ -290,28 +304,70 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
 // POST /api/campaigns/:id/start
 router.post('/:id/start', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   const campaignId = parseInt(req.params.id, 10);
+  const db = getDatabase();
+  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId) as { name: string } | undefined;
   await campaignQueue.startCampaign(campaignId);
+
+  logActivity({
+    category: 'campaign',
+    action: 'start',
+    title: `إطلاق وبدء إرسال الحملة: "${camp?.name || `#${campaignId}`}"`,
+    details: { campaignId },
+  });
+
   res.json({ success: true, message: 'Campaign started' });
 });
 
 // POST /api/campaigns/:id/pause
 router.post('/:id/pause', requireAuth, (req: AuthRequest, res: Response): void => {
   const campaignId = parseInt(req.params.id, 10);
+  const db = getDatabase();
+  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId) as { name: string } | undefined;
   campaignQueue.pauseCampaign(campaignId);
+
+  logActivity({
+    category: 'campaign',
+    action: 'pause',
+    title: `إيقاف مؤقت للحملة: "${camp?.name || `#${campaignId}`}"`,
+    details: { campaignId },
+    status: 'warning',
+  });
+
   res.json({ success: true, message: 'Campaign paused' });
 });
 
 // POST /api/campaigns/:id/resume
 router.post('/:id/resume', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   const campaignId = parseInt(req.params.id, 10);
+  const db = getDatabase();
+  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId) as { name: string } | undefined;
   await campaignQueue.resumeCampaign(campaignId);
+
+  logActivity({
+    category: 'campaign',
+    action: 'resume',
+    title: `استئناف إرسال الحملة: "${camp?.name || `#${campaignId}`}"`,
+    details: { campaignId },
+  });
+
   res.json({ success: true, message: 'Campaign resumed' });
 });
 
 // POST /api/campaigns/:id/cancel
 router.post('/:id/cancel', requireAuth, (req: AuthRequest, res: Response): void => {
   const campaignId = parseInt(req.params.id, 10);
+  const db = getDatabase();
+  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId) as { name: string } | undefined;
   campaignQueue.cancelCampaign(campaignId);
+
+  logActivity({
+    category: 'campaign',
+    action: 'cancel',
+    title: `إلغاء الحملة: "${camp?.name || `#${campaignId}`}"`,
+    details: { campaignId },
+    status: 'warning',
+  });
+
   res.json({ success: true, message: 'Campaign cancelled' });
 });
 
@@ -353,6 +409,14 @@ router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
     db.prepare('DELETE FROM campaigns WHERE id = ?').run(campaignId);
 
     db.exec('COMMIT;');
+
+    logActivity({
+      category: 'campaign',
+      action: 'delete',
+      title: `حذف الحملة نهائياً: "${campaign.name}"`,
+      details: { campaignId },
+      status: 'warning',
+    });
 
     res.json({
       success: true,
@@ -413,6 +477,14 @@ router.post('/test-send', requireAuth, async (req: AuthRequest, res: Response): 
       unsubscribeUrl: sampleVars.unsubscribe_url,
     });
 
+    logActivity({
+      category: 'message',
+      action: 'send',
+      title: `إرسال تجريبي (بريد) إلى: ${recipient_address}`,
+      details: { channel: 'email', recipient_address, template_id },
+      status: result.success ? 'success' : 'failed',
+    });
+
     res.json({
       success: result.success,
       message: result.success ? `Test email dispatched to ${recipient_address}` : `Failed: ${result.error}`,
@@ -423,6 +495,14 @@ router.post('/test-send', requireAuth, async (req: AuthRequest, res: Response): 
     const result = await waProvider.sendMessage({
       to: recipient_address,
       text: renderedBody,
+    });
+
+    logActivity({
+      category: 'message',
+      action: 'send',
+      title: `إرسال تجريبي (واتساب) إلى: ${recipient_address}`,
+      details: { channel: 'whatsapp', recipient_address, template_id, clickToChatUrl: result.clickToChatUrl },
+      status: result.success ? 'success' : 'failed',
     });
 
     res.json({
@@ -558,7 +638,7 @@ router.post('/send-direct', requireAuth, async (req: AuthRequest, res: Response)
     console.error('Contact resolution error:', err);
   }
 
-  // Record in message_log
+  // Record in message_log and activity_log
   try {
     db.prepare(`
       INSERT INTO message_log (
@@ -577,6 +657,20 @@ router.post('/send-direct', requireAuth, async (req: AuthRequest, res: Response)
       providerResp || null,
       errorMsg || null
     );
+
+    logActivity({
+      category: 'message',
+      action: 'send',
+      title: `إرسال مباشر (${channel === 'email' ? 'بريد' : 'واتساب'}) إلى: ${recipient_address}`,
+      details: {
+        channel,
+        recipient_address,
+        person_name: person_name || null,
+        company_name: company_name || null,
+        is_dry_run,
+      },
+      status: sendSuccess ? 'success' : 'failed',
+    });
   } catch (err: any) {
     console.error('Failed to log message:', err);
   }

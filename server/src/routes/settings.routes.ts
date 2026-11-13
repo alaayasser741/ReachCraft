@@ -5,6 +5,7 @@ import { requireAuth, AuthRequest } from '../middlewares/auth.middleware.js';
 import { env } from '../config/env.js';
 import { getEmailProvider } from '../services/email/providerFactory.js';
 import { NodemailerProvider } from '../services/email/nodemailerProvider.js';
+import { logActivity } from '../services/activityLogger.js';
 
 const router = Router();
 
@@ -89,6 +90,12 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
         upsertStmt.run(key, String(val));
       }
     }
+  });
+
+  logActivity({
+    category: 'settings',
+    action: 'update',
+    title: 'تحديث إعدادات النظام ومزودي الخدمة',
   });
 
   res.json({ success: true, message: 'Settings saved successfully' });
