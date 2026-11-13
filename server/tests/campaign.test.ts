@@ -20,6 +20,7 @@ describe('Campaigns & Queue Engine Integration', () => {
     // Ensure we have at least one test company & contact
     const db = getDatabase();
     db.prepare("DELETE FROM contacts WHERE email IN ('alice@acme-global.com', 'bob@acme-global.com') OR phone_mobile IN ('+201012345678', '+201198765432')").run();
+    db.prepare("DELETE FROM companies WHERE name = 'Acme Corp Global'").run();
 
     const compRes = db.prepare(`
       INSERT INTO companies (name, website, description, has_direct_contact)

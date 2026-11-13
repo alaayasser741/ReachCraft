@@ -5,6 +5,27 @@ import { requireAuth, AuthRequest } from '../middlewares/auth.middleware.js';
 
 const router = Router();
 
+// GET /api/contacts/stats
+router.get('/stats', requireAuth, (_req: AuthRequest, res: Response): void => {
+  const db = getDatabase();
+  const totalContacts = (db.prepare('SELECT COUNT(*) as c FROM contacts').get() as { c: number }).c;
+  const verifiedEmails = (db.prepare("SELECT COUNT(*) as c FROM contacts WHERE is_valid_email = 1 AND email IS NOT NULL AND email != ''").get() as { c: number }).c;
+  const validWhatsApp = (db.prepare("SELECT COUNT(*) as c FROM contacts WHERE is_valid_whatsapp = 1 AND ((whatsapp_number IS NOT NULL AND whatsapp_number != '') OR (phone_mobile IS NOT NULL AND phone_mobile != ''))").get() as { c: number }).c;
+  const optedOut = (db.prepare('SELECT COUNT(*) as c FROM contacts WHERE opted_out = 1').get() as { c: number }).c;
+  const totalCompanies = (db.prepare('SELECT COUNT(*) as c FROM companies').get() as { c: number }).c;
+
+  res.json({
+    success: true,
+    stats: {
+      totalContacts,
+      verifiedEmails,
+      validWhatsApp,
+      optedOut,
+      totalCompanies,
+    },
+  });
+});
+
 // GET /api/contacts
 router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
@@ -13,6 +34,44 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const hasEmail = req.query.hasEmail !== undefined ? req.query.hasEmail === 'true' : null;
   const hasWhatsApp = req.query.hasWhatsApp !== undefined ? req.query.hasWhatsApp === 'true' : null;
   const optedOut = req.query.optedOut !== undefined ? req.query.optedOut === 'true' : null;
+  const page = req.query.page ? Math.max(1, parseInt(String(req.query.page), 10)) : undefined;
+  const limit = req.query.limit ? Math.max(1, Math.min(200, parseInt(String(req.query.limit), 10))) : undefined;
+
+  let whereClause = ' WHERE 1=1';
+  const params: any[] = [];
+
+  if (search) {
+    whereClause += ` AND (ct.person_name LIKE ? OR ct.email LIKE ? OR ct.phone_mobile LIKE ? OR c.name LIKE ? OR ct.job_title LIKE ?)`;
+    params.push(search, search, search, search, search);
+  }
+
+  if (companyId) {
+    whereClause += ` AND ct.company_id = ?`;
+    params.push(companyId);
+  }
+
+  if (hasEmail !== null) {
+    whereClause += hasEmail ? ` AND (ct.email IS NOT NULL AND ct.email != '')` : ` AND (ct.email IS NULL OR ct.email = '')`;
+  }
+
+  if (hasWhatsApp !== null) {
+    whereClause += hasWhatsApp
+      ? ` AND (ct.whatsapp_number IS NOT NULL AND ct.whatsapp_number != '')`
+      : ` AND (ct.whatsapp_number IS NULL OR ct.whatsapp_number = '')`;
+  }
+
+  if (optedOut !== null) {
+    whereClause += ` AND ct.opted_out = ?`;
+    params.push(optedOut ? 1 : 0);
+  }
+
+  const countQuery = `
+    SELECT COUNT(*) as c
+    FROM contacts ct
+    JOIN companies c ON c.id = ct.company_id
+    ${whereClause}
+  `;
+  const total = (db.prepare(countQuery).get(...params) as { c: number }).c;
 
   let query = `
     SELECT 
@@ -21,39 +80,27 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
       c.website as company_website
     FROM contacts ct
     JOIN companies c ON c.id = ct.company_id
-    WHERE 1=1
+    ${whereClause}
+    ORDER BY ct.id ASC
   `;
-  const params: any[] = [];
 
-  if (search) {
-    query += ` AND (ct.person_name LIKE ? OR ct.email LIKE ? OR ct.phone_mobile LIKE ? OR c.name LIKE ? OR ct.job_title LIKE ?)`;
-    params.push(search, search, search, search, search);
+  const queryParams = [...params];
+  if (page && limit) {
+    const offset = (page - 1) * limit;
+    query += ` LIMIT ? OFFSET ?`;
+    queryParams.push(limit, offset);
   }
 
-  if (companyId) {
-    query += ` AND ct.company_id = ?`;
-    params.push(companyId);
-  }
-
-  if (hasEmail !== null) {
-    query += hasEmail ? ` AND (ct.email IS NOT NULL AND ct.email != '')` : ` AND (ct.email IS NULL OR ct.email = '')`;
-  }
-
-  if (hasWhatsApp !== null) {
-    query += hasWhatsApp
-      ? ` AND (ct.whatsapp_number IS NOT NULL AND ct.whatsapp_number != '')`
-      : ` AND (ct.whatsapp_number IS NULL OR ct.whatsapp_number = '')`;
-  }
-
-  if (optedOut !== null) {
-    query += ` AND ct.opted_out = ?`;
-    params.push(optedOut ? 1 : 0);
-  }
-
-  query += ` ORDER BY ct.id ASC`;
-
-  const contacts = db.prepare(query).all(...params);
-  res.json({ success: true, count: contacts.length, contacts });
+  const contacts = db.prepare(query).all(...queryParams);
+  res.json({
+    success: true,
+    count: contacts.length,
+    total,
+    page: page || 1,
+    limit: limit || total,
+    totalPages: limit ? Math.ceil(total / limit) : 1,
+    contacts,
+  });
 });
 
 // GET /api/contacts/export/csv

@@ -10,6 +10,24 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
   const search = req.query.search ? `%${String(req.query.search).trim()}%` : null;
   const hasDirect = req.query.hasDirectContact !== undefined ? Number(req.query.hasDirectContact) : null;
+  const page = req.query.page ? Math.max(1, parseInt(String(req.query.page), 10)) : undefined;
+  const limit = req.query.limit ? Math.max(1, Math.min(200, parseInt(String(req.query.limit), 10))) : undefined;
+
+  let whereClause = ' WHERE 1=1';
+  const params: any[] = [];
+
+  if (search) {
+    whereClause += ` AND (c.name LIKE ? OR c.description LIKE ? OR c.website LIKE ?)`;
+    params.push(search, search, search);
+  }
+
+  if (hasDirect !== null) {
+    whereClause += ` AND c.has_direct_contact = ?`;
+    params.push(hasDirect);
+  }
+
+  const countQuery = `SELECT COUNT(*) as c FROM companies c ${whereClause}`;
+  const total = (db.prepare(countQuery).get(...params) as { c: number }).c;
 
   let query = `
     SELECT 
@@ -19,24 +37,27 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
     FROM companies c
     LEFT JOIN contacts ct ON ct.company_id = c.id
     LEFT JOIN company_links cl ON cl.company_id = c.id
-    WHERE 1=1
+    ${whereClause}
+    GROUP BY c.id ORDER BY c.id ASC
   `;
-  const params: any[] = [];
 
-  if (search) {
-    query += ` AND (c.name LIKE ? OR c.description LIKE ? OR c.website LIKE ?)`;
-    params.push(search, search, search);
+  const queryParams = [...params];
+  if (page && limit) {
+    const offset = (page - 1) * limit;
+    query += ` LIMIT ? OFFSET ?`;
+    queryParams.push(limit, offset);
   }
 
-  if (hasDirect !== null) {
-    query += ` AND c.has_direct_contact = ?`;
-    params.push(hasDirect);
-  }
-
-  query += ` GROUP BY c.id ORDER BY c.id ASC`;
-
-  const companies = db.prepare(query).all(...params);
-  res.json({ success: true, companies });
+  const companies = db.prepare(query).all(...queryParams);
+  res.json({
+    success: true,
+    count: companies.length,
+    total,
+    page: page || 1,
+    limit: limit || total,
+    totalPages: limit ? Math.ceil(total / limit) : 1,
+    companies,
+  });
 });
 
 // GET /api/companies/:id

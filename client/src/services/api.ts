@@ -92,11 +92,21 @@ export const api = {
     ),
 
   // Companies
-  getCompanies: (params?: { search?: string; hasDirectContact?: number }) => {
+  getCompanies: (params?: { search?: string; hasDirectContact?: number; page?: number; limit?: number }) => {
     const query = new URLSearchParams();
     if (params?.search) query.append('search', params.search);
     if (params?.hasDirectContact !== undefined) query.append('hasDirectContact', String(params.hasDirectContact));
-    return request<{ success: boolean; companies: Company[] }>(`/companies?${query.toString()}`);
+    if (params?.page !== undefined) query.append('page', String(params.page));
+    if (params?.limit !== undefined) query.append('limit', String(params.limit));
+    return request<{
+      success: boolean;
+      count: number;
+      total?: number;
+      page?: number;
+      limit?: number;
+      totalPages?: number;
+      companies: Company[];
+    }>(`/companies?${query.toString()}`);
   },
   getCompany: (id: number) =>
     request<{ success: boolean; company: Company }>(`/companies/${id}`),
@@ -115,6 +125,8 @@ export const api = {
     hasEmail?: boolean;
     hasWhatsApp?: boolean;
     optedOut?: boolean;
+    page?: number;
+    limit?: number;
   }) => {
     const query = new URLSearchParams();
     if (params?.search) query.append('search', params.search);
@@ -122,8 +134,29 @@ export const api = {
     if (params?.hasEmail !== undefined) query.append('hasEmail', String(params.hasEmail));
     if (params?.hasWhatsApp !== undefined) query.append('hasWhatsApp', String(params.hasWhatsApp));
     if (params?.optedOut !== undefined) query.append('optedOut', String(params.optedOut));
-    return request<{ success: boolean; count: number; contacts: Contact[] }>(`/contacts?${query.toString()}`);
+    if (params?.page !== undefined) query.append('page', String(params.page));
+    if (params?.limit !== undefined) query.append('limit', String(params.limit));
+    return request<{
+      success: boolean;
+      count: number;
+      total?: number;
+      page?: number;
+      limit?: number;
+      totalPages?: number;
+      contacts: Contact[];
+    }>(`/contacts?${query.toString()}`);
   },
+  getContactStats: () =>
+    request<{
+      success: boolean;
+      stats: {
+        totalContacts: number;
+        verifiedEmails: number;
+        validWhatsApp: number;
+        optedOut: number;
+        totalCompanies: number;
+      };
+    }>('/contacts/stats'),
   getContact: (id: number) =>
     request<{ success: boolean; contact: Contact }>(`/contacts/${id}`),
   updateContact: (id: number, data: Partial<Contact>) =>

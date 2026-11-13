@@ -52,4 +52,34 @@ describe('File Upload & Confirm Flow', () => {
     expect(compCount).toBeGreaterThanOrEqual(68);
     expect(contactCount).toBeGreaterThan(0);
   });
+
+  it('Re-confirming the same file data does not duplicate companies or contacts', async () => {
+    const db = getDatabase();
+    const initialCompCount = (db.prepare('SELECT COUNT(*) as count FROM companies').get() as { count: number }).count;
+    const initialContactCount = (db.prepare('SELECT COUNT(*) as count FROM contacts').get() as { count: number }).count;
+
+    // Upload file again
+    const res = await request(app)
+      .post('/api/files/upload')
+      .set('Authorization', `Bearer ${authToken}`)
+      .attach('file', samplePdfPath);
+
+    const fileId = res.body.fileId;
+    const companies = res.body.parseResult.companies;
+
+    // Confirm again
+    const confirmRes = await request(app)
+      .post(`/api/files/${fileId}/confirm`)
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ companies });
+
+    expect(confirmRes.status).toBe(200);
+
+    // Verify company count and contact count did NOT multiply
+    const finalCompCount = (db.prepare('SELECT COUNT(*) as count FROM companies').get() as { count: number }).count;
+    const finalContactCount = (db.prepare('SELECT COUNT(*) as count FROM contacts').get() as { count: number }).count;
+
+    expect(finalCompCount).toBe(initialCompCount);
+    expect(finalContactCount).toBe(initialContactCount);
+  });
 });

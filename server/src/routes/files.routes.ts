@@ -177,6 +177,24 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
   db.exec('BEGIN TRANSACTION;');
 
   try {
+    const findCompanyStmt = db.prepare(`
+      SELECT id, name, website, description, address, has_direct_contact
+      FROM companies
+      WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))
+      LIMIT 1
+    `);
+
+    const updateCompanyStmt = db.prepare(`
+      UPDATE companies SET
+        website = COALESCE(NULLIF(website, ''), ?),
+        description = COALESCE(NULLIF(description, ''), ?),
+        address = COALESCE(NULLIF(address, ''), ?),
+        has_direct_contact = CASE WHEN ? = 1 THEN 1 ELSE has_direct_contact END,
+        source_file_id = COALESCE(source_file_id, ?),
+        updated_at = datetime('now')
+      WHERE id = ?
+    `);
+
     const insertCompanyStmt = db.prepare(`
       INSERT INTO companies (name, website, description, address, source_file_id, has_direct_contact)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -185,9 +203,11 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
     const findContactStmt = db.prepare(`
       SELECT id, person_name, job_title, phone_mobile, phone_landline, whatsapp_number, address, notes
       FROM contacts 
-      WHERE (email IS NOT NULL AND email != '' AND LOWER(email) = LOWER(?))
+      WHERE (email IS NOT NULL AND email != '' AND LOWER(TRIM(email)) = LOWER(TRIM(?)))
          OR (phone_mobile IS NOT NULL AND phone_mobile != '' AND phone_mobile = ?)
          OR (whatsapp_number IS NOT NULL AND whatsapp_number != '' AND whatsapp_number = ?)
+         OR (company_id = ? AND person_name IS NOT NULL AND person_name != '' AND LOWER(TRIM(person_name)) = LOWER(TRIM(?)))
+         OR (company_id = ? AND (email IS NULL OR email = '') AND (phone_mobile IS NULL OR phone_mobile = '') AND (whatsapp_number IS NULL OR whatsapp_number = ''))
       LIMIT 1
     `);
 
@@ -212,6 +232,10 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
     `);
 
+    const findLinkStmt = db.prepare(`
+      SELECT id FROM company_links WHERE company_id = ? AND url = ? LIMIT 1
+    `);
+
     const insertLinkStmt = db.prepare(`
       INSERT INTO company_links (company_id, type, url)
       VALUES (?, ?, ?)
@@ -219,24 +243,44 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
 
     for (const company of companies) {
       if (company.isExcluded) continue;
+      const cleanCompName = company.name ? String(company.name).trim() : '';
+      if (!cleanCompName) continue;
 
-      const compResult = insertCompanyStmt.run(
-        company.name,
-        company.website || null,
-        company.description || null,
-        company.address || null,
-        fileId,
-        company.hasDirectContact ? 1 : 0
-      );
+      const existingCompany = findCompanyStmt.get(cleanCompName) as { id: number } | undefined;
+      let companyDbId: number;
 
-      const companyDbId = Number(compResult.lastInsertRowid);
+      if (existingCompany) {
+        companyDbId = existingCompany.id;
+        updateCompanyStmt.run(
+          company.website || null,
+          company.description || null,
+          company.address || null,
+          company.hasDirectContact ? 1 : 0,
+          fileId,
+          companyDbId
+        );
+      } else {
+        const compResult = insertCompanyStmt.run(
+          cleanCompName,
+          company.website || null,
+          company.description || null,
+          company.address || null,
+          fileId,
+          company.hasDirectContact ? 1 : 0
+        );
+        companyDbId = Number(compResult.lastInsertRowid);
+      }
       savedCompaniesCount++;
 
-      // Insert Links
+      // Insert Links (Strict Deduplication)
       if (company.links && Array.isArray(company.links)) {
         for (const link of company.links) {
           if (link.url) {
-            insertLinkStmt.run(companyDbId, link.type, link.url);
+            const cleanUrl = String(link.url).trim();
+            const existingLink = findLinkStmt.get(companyDbId, cleanUrl);
+            if (!existingLink) {
+              insertLinkStmt.run(companyDbId, link.type, cleanUrl);
+            }
           }
         }
       }
@@ -247,10 +291,16 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
           const cleanEmail = contact.email ? String(contact.email).trim().toLowerCase() : null;
           const cleanPhone = contact.phoneMobile ? String(contact.phoneMobile).trim() : null;
           const cleanWa = contact.whatsappNumber ? String(contact.whatsappNumber).trim() : null;
+          const cleanName = contact.personName ? String(contact.personName).trim() : null;
 
-          const existing = (cleanEmail || cleanPhone || cleanWa)
-            ? (findContactStmt.get(cleanEmail || '', cleanPhone || '', cleanWa || '') as any)
-            : null;
+          const existing = findContactStmt.get(
+            cleanEmail || '',
+            cleanPhone || '',
+            cleanWa || '',
+            companyDbId,
+            cleanName || '',
+            companyDbId
+          ) as any;
 
           if (existing) {
             // Merge & enrich existing contact with any non-empty fields
