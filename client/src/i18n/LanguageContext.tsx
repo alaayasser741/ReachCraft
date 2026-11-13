@@ -25,11 +25,21 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('reachcraft_lang', language);
   }, [language, dir]);
 
+  const triggerLangTransition = () => {
+    const root = document.documentElement;
+    root.classList.add('lang-transitioning');
+    window.setTimeout(() => {
+      root.classList.remove('lang-transitioning');
+    }, 250);
+  };
+
   const setLanguage = (lang: Language) => {
+    triggerLangTransition();
     setLanguageState(lang);
   };
 
   const toggleLanguage = () => {
+    triggerLangTransition();
     setLanguageState((prev) => (prev === 'ar' ? 'en' : 'ar'));
   };
 

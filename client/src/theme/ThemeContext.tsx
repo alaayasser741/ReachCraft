@@ -32,11 +32,21 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('reachcraft_theme', theme);
   }, [theme]);
 
+  const triggerTransition = () => {
+    const root = document.documentElement;
+    root.classList.add('theme-transitioning');
+    window.setTimeout(() => {
+      root.classList.remove('theme-transitioning');
+    }, 350);
+  };
+
   const toggleTheme = () => {
+    triggerTransition();
     setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   const setTheme = (newTheme: Theme) => {
+    triggerTransition();
     setThemeState(newTheme);
   };
 

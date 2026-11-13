@@ -103,8 +103,16 @@ export class ImapReaderService {
         const isReadFlag = msg.flags?.has('\\Seen') ? 1 : 0;
 
         if (existing) {
-          if (existing.is_read !== isReadFlag) {
-            updateReadStmt.run(isReadFlag, existing.id);
+          if (isReadFlag === 1 && existing.is_read === 0) {
+            // Marked as read on Gmail web/app -> reflect in ReachCraft
+            updateReadStmt.run(1, existing.id);
+          } else if (existing.is_read === 1 && isReadFlag === 0) {
+            // User opened/read this email in ReachCraft -> preserve read state and sync \Seen to Gmail
+            try {
+              await client.messageFlagsAdd(uidStr, ['\\Seen'], { uid: true });
+            } catch (flagErr: any) {
+              logger.warn({ err: flagErr.message, uid: uidStr }, 'Failed to sync \\Seen to IMAP during syncInbox');
+            }
           }
           continue;
         }
@@ -240,11 +248,53 @@ export class ImapReaderService {
         const db = getDatabase();
         // Mark as read after replying
         db.prepare('UPDATE inbox_messages SET is_read = 1 WHERE id = ?').run(params.inboxMessageId);
+        const row = db.prepare('SELECT message_uid FROM inbox_messages WHERE id = ?').get(params.inboxMessageId) as { message_uid?: string } | undefined;
+        if (row?.message_uid && !row.message_uid.startsWith('demo')) {
+          this.markMessageAsReadOnImap(row.message_uid, true).catch(() => {});
+        }
       }
 
       return result;
     } catch (err: any) {
       return { success: false, error: err.message || 'Failed to send reply' };
+    }
+  }
+
+  public async markMessageAsReadOnImap(messageUid: string, isRead: boolean = true): Promise<boolean> {
+    const creds = this.getCredentials();
+    if (!creds.user || !creds.pass || !messageUid) {
+      return false;
+    }
+
+    const cleanPass = creds.pass.replace(/\s+/g, '');
+    const client = new ImapFlow({
+      host: 'imap.gmail.com',
+      port: 993,
+      secure: true,
+      auth: {
+        user: creds.user.trim(),
+        pass: cleanPass,
+      },
+      logger: false,
+    });
+
+    try {
+      await client.connect();
+      const lock = await client.getMailboxLock('INBOX');
+      try {
+        if (isRead) {
+          await client.messageFlagsAdd(messageUid, ['\\Seen'], { uid: true });
+        } else {
+          await client.messageFlagsRemove(messageUid, ['\\Seen'], { uid: true });
+        }
+        return true;
+      } finally {
+        lock.release();
+        await client.logout();
+      }
+    } catch (err: any) {
+      logger.warn({ error: err.message, messageUid, isRead }, 'Failed to sync flag to IMAP server');
+      return false;
     }
   }
 }

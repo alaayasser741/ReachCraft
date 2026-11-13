@@ -283,25 +283,25 @@ export const DirectSendModal: React.FC<DirectSendModalProps> = ({
             <button
               type="button"
               onClick={() => handleChannelSwitch('email')}
-              className={`py-1.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+              className={`py-1.5 px-3 rounded-xl border text-xs font-bold flex flex-row items-center justify-center gap-2 transition-all ${
                 channel === 'email'
                   ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300 ring-2 ring-brand-500'
                   : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
               }`}
             >
-              <Mail className="w-3.5 h-3.5" />
+              <Mail className="w-3.5 h-3.5 shrink-0" />
               <span>{t('templates.emailChannel')}</span>
             </button>
             <button
               type="button"
               onClick={() => handleChannelSwitch('whatsapp')}
-              className={`py-1.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+              className={`py-1.5 px-3 rounded-xl border text-xs font-bold flex flex-row items-center justify-center gap-2 transition-all ${
                 channel === 'whatsapp'
                   ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 ring-2 ring-emerald-500'
                   : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
               }`}
             >
-              <MessageSquare className="w-3.5 h-3.5" />
+              <MessageSquare className="w-3.5 h-3.5 shrink-0" />
               <span>{t('templates.whatsAppChannel')}</span>
             </button>
           </div>
@@ -404,13 +404,13 @@ export const DirectSendModal: React.FC<DirectSendModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('preview')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex flex-row items-center gap-1.5 transition-all ${
                 activeTab === 'preview'
                   ? 'bg-brand-50 dark:bg-brand-950/60 text-brand-600 dark:text-brand-300'
                   : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              <Eye className="w-3.5 h-3.5" />
+              <Eye className="w-3.5 h-3.5 shrink-0" />
               <span>{t('templates.livePreview')}</span>
             </button>
           </div>
@@ -450,10 +450,10 @@ export const DirectSendModal: React.FC<DirectSendModalProps> = ({
                     type="button"
                     disabled={isPersonalizing}
                     onClick={handleAiPersonalize}
-                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-sm shadow-purple-500/20 transition-all disabled:opacity-50"
+                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white text-[11px] font-bold flex flex-row items-center gap-1.5 shadow-sm shadow-purple-500/20 transition-all disabled:opacity-50"
                     title="Personalize pitch using Gemini AI"
                   >
-                    <Sparkles className="w-3 h-3" />
+                    <Sparkles className="w-3 h-3 shrink-0" />
                     <span>{isPersonalizing ? t('ai.personalizing') : t('ai.personalizeBtn')}</span>
                   </button>
 
@@ -461,10 +461,10 @@ export const DirectSendModal: React.FC<DirectSendModalProps> = ({
                     type="button"
                     disabled={isCheckingSpam}
                     onClick={handleCheckSpam}
-                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-semibold flex flex-row items-center gap-1.5 transition-all disabled:opacity-50"
                     title="Check spam score and deliverability"
                   >
-                    <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                    <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
                     <span>{isCheckingSpam ? t('ai.checkingSpam') : t('ai.spamCheckBtn')}</span>
                   </button>
                 </div>
@@ -557,9 +557,9 @@ export const DirectSendModal: React.FC<DirectSendModalProps> = ({
                     type="button"
                     disabled={isApplyingFixes}
                     onClick={handleApplySpamFixes}
-                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm shadow-emerald-600/20 transition-all disabled:opacity-50"
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs flex flex-row items-center gap-1.5 shadow-sm shadow-emerald-600/20 transition-all disabled:opacity-50"
                   >
-                    <Wand2 className="w-3.5 h-3.5" />
+                    <Wand2 className="w-3.5 h-3.5 shrink-0" />
                     <span>{isApplyingFixes ? t('ai.applyingFixes') : t('ai.applyFixesBtn')}</span>
                   </button>
 
@@ -567,10 +567,10 @@ export const DirectSendModal: React.FC<DirectSendModalProps> = ({
                     <button
                       type="button"
                       onClick={handleUndoFixes}
-                      className="px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      className="px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold flex flex-row items-center gap-1.5 transition-colors"
                       title={t('ai.revertOriginal')}
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
+                      <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                       <span>{t('ai.undoChanges')}</span>
                     </button>
                   )}

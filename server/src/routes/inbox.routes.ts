@@ -110,6 +110,11 @@ router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   if (!message.is_read) {
     db.prepare('UPDATE inbox_messages SET is_read = 1 WHERE id = ?').run(id);
     message.is_read = 1;
+    if (message.message_uid && !String(message.message_uid).startsWith('demo')) {
+      imapReaderService.markMessageAsReadOnImap(message.message_uid, true).catch((err) => {
+        logger.warn({ err: err.message, uid: message.message_uid }, 'Failed to mark message as read on IMAP');
+      });
+    }
   }
 
   res.json({ success: true, message });
@@ -121,7 +126,20 @@ router.patch('/:id/read', requireAuth, (req: AuthRequest, res: Response): void =
   const id = parseInt(req.params.id, 10);
   const isRead = req.body.isRead ? 1 : 0;
 
+  const message = db.prepare('SELECT id, message_uid FROM inbox_messages WHERE id = ?').get(id) as any;
+  if (!message) {
+    res.status(404).json({ success: false, error: 'الرسالة غير موجودة' });
+    return;
+  }
+
   db.prepare('UPDATE inbox_messages SET is_read = ? WHERE id = ?').run(isRead, id);
+
+  if (message.message_uid && !String(message.message_uid).startsWith('demo')) {
+    imapReaderService.markMessageAsReadOnImap(message.message_uid, Boolean(isRead)).catch((err) => {
+      logger.warn({ err: err.message, uid: message.message_uid }, 'Failed to update message flag on IMAP');
+    });
+  }
+
   res.json({ success: true, isRead: Boolean(isRead) });
 });
 

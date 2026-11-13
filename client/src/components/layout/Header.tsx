@@ -47,16 +47,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, title }) => {
           {/* Language Switcher Button */}
           <button
             onClick={toggleLanguage}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all shadow-xs"
+            className="flex flex-row items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all shadow-xs"
             title={language === 'ar' ? 'Switch to English' : 'التحويل إلى العربية'}
           >
-            <Globe className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+            <Globe className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 shrink-0" />
             <span>{language === 'ar' ? 'English' : 'العربية'}</span>
           </button>
 
           {/* Free Stack Active Pill */}
-          <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs font-medium border border-emerald-200/60 dark:border-emerald-800/60">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+          <div className="hidden md:flex flex-row items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs font-medium border border-emerald-200/60 dark:border-emerald-800/60">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>{t('common.freeStackActive')}</span>
           </div>
 
@@ -68,8 +68,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, title }) => {
             leftIcon={<Send className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />}
             className="border-brand-300 dark:border-brand-800/80 hover:bg-brand-50/50 dark:hover:bg-brand-950/30 text-brand-700 dark:text-brand-300"
           >
-            <span className="hidden sm:inline">{t('header.directSend')}</span>
-            <span className="sm:hidden">{t('header.directSend')}</span>
+            <span>{t('header.directSend')}</span>
           </Button>
 
           <Link to="/upload" className="hidden sm:block">

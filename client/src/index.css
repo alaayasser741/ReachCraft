@@ -64,12 +64,28 @@ html.dark body {
   color: #f1f5f9;
 }
 
-/* Smooth theme transitions */
-body,
-header,
-aside,
-input,
-select,
-textarea {
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+/* Base smooth background and text transition */
+body {
+  transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Comprehensive smooth theme morphing across entire DOM */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              fill 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              stroke 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition-delay: 0s !important;
+}
+
+/* Smooth transition when changing language & direction */
+html.lang-transitioning body {
+  transition: opacity 0.2s ease-in-out;
+  opacity: 0.85;
 }

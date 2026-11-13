@@ -329,9 +329,9 @@ export const Inbox: React.FC = () => {
             size="sm"
             onClick={handleSync}
             isLoading={isSyncing}
+            leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />}
             className="shadow-sm"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
             <span>{dir === 'rtl' ? 'مزامنة البريد الآن' : 'Sync Gmail Now'}</span>
           </Button>
         </div>
@@ -412,8 +412,13 @@ export const Inbox: React.FC = () => {
                   {dir === 'rtl' ? 'اضغط "مزامنة البريد الآن" لجلب أحدث الإيميلات من Gmail.' : 'Click "Sync Gmail Now" to fetch the latest emails.'}
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={handleSync} isLoading={isSyncing}>
-                <RefreshCw className="w-3.5 h-3.5" />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSync}
+                isLoading={isSyncing}
+                leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+              >
                 <span>{dir === 'rtl' ? 'مزامنة البريد الآن' : 'Sync Now'}</span>
               </Button>
             </div>
@@ -572,13 +577,13 @@ export const Inbox: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setShowTranslation((prev) => ({ ...prev, [selectedMessage.id]: true }))}
-                          className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 text-[11px] ${
+                          className={`px-2.5 py-1 rounded-lg font-bold transition-all flex flex-row items-center gap-1.5 text-[11px] ${
                             showTranslation[selectedMessage.id]
                               ? 'bg-brand-600 text-white shadow-xs'
                               : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                           }`}
                         >
-                          <Sparkles className="w-3 h-3 text-amber-300" />
+                          <Sparkles className="w-3 h-3 text-amber-300 shrink-0" />
                           <span>
                             {translatedMap[selectedMessage.id].targetLang === 'ar' ? '🇸🇦 العربية' : '🇬🇧 English'}
                           </span>
@@ -590,9 +595,9 @@ export const Inbox: React.FC = () => {
                         variant="outline"
                         onClick={() => handleTranslate('ar')}
                         isLoading={isTranslating}
-                        className="h-7 text-xs font-semibold gap-1.5"
+                        leftIcon={<Languages className="w-3.5 h-3.5 text-brand-600" />}
+                        className="h-7 text-xs font-semibold"
                       >
-                        <Languages className="w-3.5 h-3.5 text-brand-600" />
                         <span>{dir === 'rtl' ? 'ترجمة الرسالة إلى العربية' : 'Translate to Arabic'}</span>
                       </Button>
                     )}
@@ -706,9 +711,9 @@ export const Inbox: React.FC = () => {
                     variant="outline"
                     onClick={() => handleDraftReply()}
                     isLoading={isDrafting}
+                    leftIcon={<Sparkles className="w-3.5 h-3.5 text-purple-600" />}
                     className="shrink-0"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-purple-600" />
                     <span>{dir === 'rtl' ? 'صياغة' : 'Draft'}</span>
                   </Button>
                 </div>
@@ -741,9 +746,9 @@ export const Inbox: React.FC = () => {
                     onClick={handleSendReply}
                     isLoading={isSendingReply}
                     disabled={!replyText.trim()}
+                    leftIcon={<Send className="w-3.5 h-3.5" />}
                     className="shadow-md shadow-brand-500/20"
                   >
-                    <Send className="w-3.5 h-3.5" />
                     <span>{dir === 'rtl' ? 'إرسال الرد الآن' : 'Send Reply Now'}</span>
                   </Button>
                 </div>

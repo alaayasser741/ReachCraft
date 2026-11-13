@@ -4,13 +4,14 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { X } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const Layout: React.FC<{ title?: string }> = ({ title }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { dir } = useTranslation();
+  const { dir, language } = useTranslation();
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden" dir={dir}>
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden transition-colors duration-300" dir={dir}>
       {/* Desktop Sidebar */}
       <div className="hidden lg:flex shrink-0">
         <Sidebar />
@@ -45,7 +46,15 @@ export const Layout: React.FC<{ title?: string }> = ({ title }) => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header onOpenMobileMenu={() => setMobileMenuOpen(true)} title={title} />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <Outlet />
+          <motion.div
+            key={language}
+            initial={{ opacity: 0.85, y: 2 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="w-full"
+          >
+            <Outlet />
+          </motion.div>
         </main>
       </div>
     </div>
