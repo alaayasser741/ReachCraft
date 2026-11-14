@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+server/dist
+client/dist
+.git
+.github
+data
+server/data/*.db
+server/data/*.db-journal
+server/data/*.db-wal
+server/data/*.db-shm
+*.log
+.env
+.env.local

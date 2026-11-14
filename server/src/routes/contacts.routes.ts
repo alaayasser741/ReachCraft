@@ -7,13 +7,31 @@ import { logActivity } from '../services/activityLogger.js';
 const router = Router();
 
 // GET /api/contacts/stats
-router.get('/stats', requireAuth, (_req: AuthRequest, res: Response): void => {
+router.get('/stats', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
-  const totalContacts = (db.prepare('SELECT COUNT(*) as c FROM contacts').get() as { c: number }).c;
-  const verifiedEmails = (db.prepare("SELECT COUNT(*) as c FROM contacts WHERE is_valid_email = 1 AND email IS NOT NULL AND email != ''").get() as { c: number }).c;
-  const validWhatsApp = (db.prepare("SELECT COUNT(*) as c FROM contacts WHERE is_valid_whatsapp = 1 AND ((whatsapp_number IS NOT NULL AND whatsapp_number != '') OR (phone_mobile IS NOT NULL AND phone_mobile != ''))").get() as { c: number }).c;
-  const optedOut = (db.prepare('SELECT COUNT(*) as c FROM contacts WHERE opted_out = 1').get() as { c: number }).c;
-  const totalCompanies = (db.prepare('SELECT COUNT(*) as c FROM companies').get() as { c: number }).c;
+  const userId = req.user!.id;
+  const isPool = req.query.pool === 'true';
+
+  let where = isPool ? 'WHERE is_verified_pool = 1' : 'WHERE user_id = ?';
+  let compWhere = isPool
+    ? 'WHERE id IN (SELECT DISTINCT company_id FROM contacts WHERE is_verified_pool = 1)'
+    : 'WHERE user_id = ?';
+  const p = isPool ? [] : [userId];
+
+  const totalContacts = (db.prepare(`SELECT COUNT(*) as c FROM contacts ${where}`).get(...p) as { c: number }).c;
+  const verifiedEmails = (
+    db.prepare(`SELECT COUNT(*) as c FROM contacts ${where} AND is_valid_email = 1 AND email IS NOT NULL AND email != ''`).get(...p) as { c: number }
+  ).c;
+  const validWhatsApp = (
+    db
+      .prepare(
+        `SELECT COUNT(*) as c FROM contacts ${where} AND is_valid_whatsapp = 1 AND ((whatsapp_number IS NOT NULL AND whatsapp_number != '') OR (phone_mobile IS NOT NULL AND phone_mobile != ''))`
+      )
+      .get(...p) as { c: number }
+  ).c;
+  const optedOut = (db.prepare(`SELECT COUNT(*) as c FROM contacts ${where} AND opted_out = 1`).get(...p) as { c: number }).c;
+  const totalCompanies = (db.prepare(`SELECT COUNT(*) as c FROM companies ${compWhere}`).get(...p) as { c: number }).c;
+  const poolCount = (db.prepare('SELECT COUNT(*) as c FROM contacts WHERE is_verified_pool = 1').get() as { c: number }).c;
 
   res.json({
     success: true,
@@ -23,6 +41,7 @@ router.get('/stats', requireAuth, (_req: AuthRequest, res: Response): void => {
       validWhatsApp,
       optedOut,
       totalCompanies,
+      poolCount,
     },
   });
 });
@@ -30,6 +49,9 @@ router.get('/stats', requireAuth, (_req: AuthRequest, res: Response): void => {
 // GET /api/contacts
 router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isPool = req.query.pool === 'true';
+
   const search = req.query.search ? `%${String(req.query.search).trim()}%` : null;
   const companyId = req.query.companyId ? Number(req.query.companyId) : null;
   const hasEmail = req.query.hasEmail !== undefined ? req.query.hasEmail === 'true' : null;
@@ -38,8 +60,8 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const page = req.query.page ? Math.max(1, parseInt(String(req.query.page), 10)) : undefined;
   const limit = req.query.limit ? Math.max(1, Math.min(200, parseInt(String(req.query.limit), 10))) : undefined;
 
-  let whereClause = ' WHERE 1=1';
-  const params: any[] = [];
+  let whereClause = isPool ? ' WHERE ct.is_verified_pool = 1' : ' WHERE ct.user_id = ?';
+  const params: any[] = isPool ? [] : [userId];
 
   if (search) {
     whereClause += ` AND (ct.person_name LIKE ? OR ct.email LIKE ? OR ct.phone_mobile LIKE ? OR c.name LIKE ? OR ct.job_title LIKE ?)`;
@@ -105,9 +127,17 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
 });
 
 // GET /api/contacts/export/csv
-router.get('/export/csv', requireAuth, (_req: AuthRequest, res: Response): void => {
+router.get('/export/csv', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
-  const contacts = db.prepare(`
+  const userId = req.user!.id;
+  const isPool = req.query.pool === 'true';
+
+  let where = isPool ? 'WHERE ct.is_verified_pool = 1' : 'WHERE ct.user_id = ?';
+  const p = isPool ? [] : [userId];
+
+  const contacts = db
+    .prepare(
+      `
     SELECT 
       c.name as "Company Name",
       c.website as "Website",
@@ -122,8 +152,11 @@ router.get('/export/csv', requireAuth, (_req: AuthRequest, res: Response): void 
       ct.address as "Address"
     FROM contacts ct
     JOIN companies c ON c.id = ct.company_id
+    ${where}
     ORDER BY c.id ASC, ct.id ASC
-  `).all() as any[];
+  `
+    )
+    .all(...p) as any[];
 
   if (contacts.length === 0) {
     res.setHeader('Content-Type', 'text/csv');
@@ -156,12 +189,18 @@ router.get('/export/csv', requireAuth, (_req: AuthRequest, res: Response): void 
 // GET /api/contacts/:id
 router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
-  const contact = db.prepare(`
+  const userId = req.user!.id;
+
+  const contact = db
+    .prepare(
+      `
     SELECT ct.*, c.name as company_name, c.website as company_website, c.description as company_description
     FROM contacts ct
     JOIN companies c ON c.id = ct.company_id
-    WHERE ct.id = ?
-  `).get(req.params.id);
+    WHERE ct.id = ? AND (ct.user_id = ? OR ct.is_verified_pool = 1)
+  `
+    )
+    .get(req.params.id, userId);
 
   if (!contact) {
     res.status(404).json({ success: false, error: 'Contact not found' });
@@ -184,6 +223,7 @@ const updateContactSchema = z.object({
   is_valid_whatsapp: z.number().min(0).max(1).optional(),
   opted_out: z.number().min(0).max(1).optional(),
   notes: z.string().nullable().optional(),
+  is_verified_pool: z.number().min(0).max(1).optional(),
 });
 
 router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
@@ -194,30 +234,39 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   const db = getDatabase();
+  const userId = req.user!.id;
   const contactId = req.params.id;
   const updates = parseResult.data;
 
-  // Strict Deduplication Check: Prevent assigning email/phone that belongs to another contact
+  const existing = db
+    .prepare('SELECT id, person_name, email, phone_mobile, user_id FROM contacts WHERE id = ? AND (user_id = ? OR ? = 1)')
+    .get(contactId, userId, req.user?.role === 'super_admin' ? 1 : 0) as any;
+
+  if (!existing) {
+    res.status(404).json({ success: false, error: 'Contact not found' });
+    return;
+  }
+
+  // Deduplication check strictly within user scope (or verified pool)
   if (updates.email || updates.phone_mobile || updates.whatsapp_number) {
-    const conflict = db.prepare(`
+    const conflict = db
+      .prepare(
+        `
       SELECT id FROM contacts 
-      WHERE id != ? AND (
+      WHERE id != ? AND user_id = ? AND (
         (email IS NOT NULL AND email != '' AND LOWER(email) = LOWER(?)) OR
         (phone_mobile IS NOT NULL AND phone_mobile != '' AND phone_mobile = ?) OR
         (whatsapp_number IS NOT NULL AND whatsapp_number != '' AND whatsapp_number = ?)
       )
       LIMIT 1
-    `).get(
-      contactId,
-      updates.email || '',
-      updates.phone_mobile || '',
-      updates.whatsapp_number || ''
-    );
+    `
+      )
+      .get(contactId, userId, updates.email || '', updates.phone_mobile || '', updates.whatsapp_number || '');
 
     if (conflict) {
       res.status(409).json({
         success: false,
-        error: 'يوجد جهة اتصال أخرى مسجلة مسبقاً بنفس البريد الإلكتروني أو رقم الهاتف أو الواتساب. يُمنع التكرار.',
+        error: 'يوجد جهة اتصال أخرى مسجلة مسبقاً بنفس البريد أو الهاتف في حسابك. يُمنع التكرار.',
       });
       return;
     }
@@ -225,8 +274,6 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
 
   const fields: string[] = [];
   const params: any[] = [];
-
-  const existing = db.prepare('SELECT person_name, email, phone_mobile FROM contacts WHERE id = ?').get(contactId) as any;
 
   Object.entries(updates).forEach(([key, val]) => {
     if (val !== undefined) {
@@ -250,6 +297,7 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
     action: 'update',
     title: `تعديل بيانات جهة الاتصال: ${existing?.person_name || existing?.email || `#${contactId}`}`,
     details: updates,
+    userId,
   });
 
   res.json({ success: true, message: 'Contact updated successfully' });
@@ -258,7 +306,18 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
 // DELETE /api/contacts/:id
 router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
-  const existing = db.prepare('SELECT person_name, email, phone_mobile FROM contacts WHERE id = ?').get(req.params.id) as any;
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
+  const existing = db
+    .prepare('SELECT person_name, email, phone_mobile FROM contacts WHERE id = ? AND (user_id = ? OR ? = 1)')
+    .get(req.params.id, userId, isSuperAdmin ? 1 : 0) as any;
+
+  if (!existing) {
+    res.status(404).json({ success: false, error: 'Contact not found' });
+    return;
+  }
+
   db.prepare(`DELETE FROM contacts WHERE id = ?`).run(req.params.id);
 
   logActivity({
@@ -267,6 +326,7 @@ router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
     title: `حذف جهة اتصال: ${existing?.person_name || existing?.email || `#${req.params.id}`}`,
     details: existing || null,
     status: 'warning',
+    userId,
   });
 
   res.json({ success: true, message: 'Contact deleted successfully' });

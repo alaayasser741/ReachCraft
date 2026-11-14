@@ -69,6 +69,119 @@ export const api = {
     }),
   logout: () => request<{ success: boolean }>('/auth/logout', { method: 'POST' }),
   getCurrentUser: () => request<{ success: boolean; user: User }>('/auth/me'),
+  requestRegisterOtp: (data: { name: string; email: string; password: string; acceptTerms: boolean; language: 'ar' | 'en' }) =>
+    request<{ success: boolean; message: string; devCode?: string }>('/auth/register-request-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  verifyRegisterOtp: (data: { name: string; email: string; password: string; code: string }) =>
+    request<{ success: boolean; user: User; token: string }>('/auth/register-verify-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  loginWithGoogle: (credential: string) =>
+    request<{ success: boolean; user: User; token: string }>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+    }),
+  completeOnboarding: (data: { gemini_api_key?: string; smtp_user?: string; smtp_pass?: string; smtp_from_name?: string; smtp_from_email?: string }) =>
+    request<{ success: boolean; user: User; message: string }>('/auth/onboarding', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getIntegrations: () =>
+    request<{
+      success: boolean;
+      integrations: {
+        has_gemini_key: boolean;
+        has_smtp_pass: boolean;
+        smtp_user: string;
+        smtp_from_name: string;
+        smtp_from_email: string;
+        updated_at: string | null;
+      };
+    }>('/auth/integrations'),
+
+  // Super Admin
+  getAdminStats: () =>
+    request<{ success: boolean; stats: any }>('/admin/stats'),
+  getAdminUsers: (search?: string) => {
+    const q = search ? `?search=${encodeURIComponent(search)}` : '';
+    return request<{ success: boolean; users: any[] }>(`/admin/users${q}`);
+  },
+  updateAdminUserPlan: (userId: number, plan: string) =>
+    request<{ success: boolean; message: string }>(`/admin/users/${userId}/plan`, {
+      method: 'PATCH',
+      body: JSON.stringify({ plan }),
+    }),
+  updateAdminUserStatus: (userId: number, status: 'active' | 'suspended') =>
+    request<{ success: boolean; message: string }>(`/admin/users/${userId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+  deleteAdminUser: (userId: number) =>
+    request<{ success: boolean; message: string }>(`/admin/users/${userId}`, {
+      method: 'DELETE',
+    }),
+  // Admin Plans CRUD
+  getAdminPlans: () =>
+    request<{ success: boolean; plans: any[] }>('/admin/plans'),
+  createAdminPlan: (data: any) =>
+    request<{ success: boolean; message: string }>('/admin/plans', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateAdminPlan: (id: string, data: any) =>
+    request<{ success: boolean; message: string }>(`/admin/plans/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteAdminPlan: (id: string) =>
+    request<{ success: boolean; message: string }>(`/admin/plans/${id}`, {
+      method: 'DELETE',
+    }),
+  // Admin Default Templates
+  getAdminTemplates: () =>
+    request<{ success: boolean; templates: any[] }>('/admin/templates'),
+  createAdminTemplate: (data: { name: string; channel: 'email' | 'whatsapp'; subject?: string; body: string }) =>
+    request<{ success: boolean; message: string; templateId: number }>('/admin/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateAdminTemplate: (id: number, data: any) =>
+    request<{ success: boolean; message: string }>(`/admin/templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteAdminTemplate: (id: number) =>
+    request<{ success: boolean; message: string }>(`/admin/templates/${id}`, {
+      method: 'DELETE',
+    }),
+  // Admin Verified Contacts Pool
+  getAdminVerifiedContacts: (search?: string) => {
+    const q = search ? `?search=${encodeURIComponent(search)}` : '';
+    return request<{ success: boolean; contacts: any[] }>(`/admin/verified-contacts${q}`);
+  },
+  createAdminVerifiedContact: (data: any) =>
+    request<{ success: boolean; message: string }>('/admin/verified-contacts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  removeAdminVerifiedContact: (id: number) =>
+    request<{ success: boolean; message: string }>(`/admin/verified-contacts/${id}`, {
+      method: 'DELETE',
+    }),
+  // Admin Global Audit Logs
+  getAdminLogs: (params?: { category?: string; action?: string; search?: string; page?: number; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.category) q.set('category', params.category);
+    if (params?.action) q.set('action', params.action);
+    if (params?.search) q.set('search', params.search);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request<{ success: boolean; logs: any[]; total: number; page: number; limit: number; totalPages: number }>(`/admin/logs${qs}`);
+  },
 
   // Files
   uploadFile: (file: File) => {
@@ -128,6 +241,7 @@ export const api = {
     optedOut?: boolean;
     page?: number;
     limit?: number;
+    pool?: boolean;
   }) => {
     const query = new URLSearchParams();
     if (params?.search) query.append('search', params.search);
@@ -137,6 +251,7 @@ export const api = {
     if (params?.optedOut !== undefined) query.append('optedOut', String(params.optedOut));
     if (params?.page !== undefined) query.append('page', String(params.page));
     if (params?.limit !== undefined) query.append('limit', String(params.limit));
+    if (params?.pool !== undefined) query.append('pool', String(params.pool));
     return request<{
       success: boolean;
       count: number;
@@ -156,6 +271,7 @@ export const api = {
         validWhatsApp: number;
         optedOut: number;
         totalCompanies: number;
+        poolCount?: number;
       };
     }>('/contacts/stats'),
   getContact: (id: number) =>
@@ -282,6 +398,7 @@ export const api = {
     search?: string;
     page?: number;
     limit?: number;
+    allUsers?: boolean;
   }) => {
     const query = new URLSearchParams();
     if (params?.category) query.append('category', params.category);
@@ -290,6 +407,7 @@ export const api = {
     if (params?.search) query.append('search', params.search);
     if (params?.page !== undefined) query.append('page', String(params.page));
     if (params?.limit !== undefined) query.append('limit', String(params.limit));
+    if (params?.allUsers) query.append('allUsers', 'true');
     return request<{
       success: boolean;
       count: number;
@@ -307,6 +425,7 @@ export const api = {
     search?: string;
     page?: number;
     limit?: number;
+    allUsers?: boolean;
   }) => {
     const query = new URLSearchParams();
     if (params?.campaignId) query.append('campaignId', String(params.campaignId));
@@ -315,6 +434,7 @@ export const api = {
     if (params?.search) query.append('search', params.search);
     if (params?.page !== undefined) query.append('page', String(params.page));
     if (params?.limit !== undefined) query.append('limit', String(params.limit));
+    if (params?.allUsers) query.append('allUsers', 'true');
     return request<{
       success: boolean;
       count: number;
@@ -325,8 +445,8 @@ export const api = {
       logs: MessageLog[];
     }>(`/logs?${query.toString()}`);
   },
-  getLogStats: () =>
-    request<{ success: boolean; stats: any }>('/logs/stats'),
+  getLogStats: (allUsers?: boolean) =>
+    request<{ success: boolean; stats: any }>(allUsers ? '/logs/stats?allUsers=true' : '/logs/stats'),
 
   // Settings
   getSettings: () =>

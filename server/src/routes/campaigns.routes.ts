@@ -22,8 +22,9 @@ const createCampaignSchema = z.object({
 });
 
 // GET /api/campaigns
-router.get('/', requireAuth, (_req: AuthRequest, res: Response): void => {
+router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
   const campaigns = db.prepare(`
     SELECT 
       c.*,
@@ -31,8 +32,9 @@ router.get('/', requireAuth, (_req: AuthRequest, res: Response): void => {
       t.subject as template_subject
     FROM campaigns c
     JOIN templates t ON t.id = c.template_id
+    WHERE c.user_id = ?
     ORDER BY c.id DESC
-  `).all();
+  `).all(userId);
 
   res.json({ success: true, campaigns });
 });
@@ -40,6 +42,7 @@ router.get('/', requireAuth, (_req: AuthRequest, res: Response): void => {
 // GET /api/campaigns/contacted-recipients
 router.get('/contacted-recipients', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
   const channel = req.query.channel as string | undefined;
 
   let query = `
@@ -50,9 +53,9 @@ router.get('/contacted-recipients', requireAuth, (req: AuthRequest, res: Respons
       MAX(ml.created_at) as last_sent_at,
       COUNT(*) as send_count
     FROM message_log ml
-    WHERE ml.status = 'sent'
+    WHERE ml.status = 'sent' AND ml.user_id = ?
   `;
-  const params: any[] = [];
+  const params: any[] = [userId];
 
   if (channel && ['email', 'whatsapp'].includes(channel)) {
     query += ' AND ml.channel = ?';
@@ -104,6 +107,9 @@ router.get('/contacted-recipients', requireAuth, (req: AuthRequest, res: Respons
 // GET /api/campaigns/:id
 router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
   const campaign = db.prepare(`
     SELECT 
       c.*,
@@ -112,8 +118,8 @@ router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
       t.body as template_body
     FROM campaigns c
     JOIN templates t ON t.id = c.template_id
-    WHERE c.id = ?
-  `).get(req.params.id) as any;
+    WHERE c.id = ? AND (c.user_id = ? OR ? = 1)
+  `).get(req.params.id, userId, isSuperAdmin ? 1 : 0) as any;
 
   if (!campaign) {
     res.status(404).json({ success: false, error: 'Campaign not found' });
@@ -135,6 +141,16 @@ router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
 // GET /api/campaigns/:id/recipients
 router.get('/:id/recipients', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
+  // Verify campaign belongs to user or is super_admin
+  const campaign = db.prepare('SELECT id FROM campaigns WHERE id = ? AND (user_id = ? OR ? = 1)').get(req.params.id, userId, isSuperAdmin ? 1 : 0);
+  if (!campaign) {
+    res.status(404).json({ success: false, error: 'Campaign not found' });
+    return;
+  }
+
   const recipients = db.prepare(`
     SELECT 
       cr.id, cr.status, cr.error, cr.retry_count, cr.sent_at,
@@ -235,8 +251,8 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     const sentRows = db.prepare(`
       SELECT DISTINCT LOWER(TRIM(recipient_address)) as addr
       FROM message_log
-      WHERE status = 'sent' AND channel = ?
-    `).all(channel) as Array<{ addr: string }>;
+      WHERE status = 'sent' AND channel = ? AND user_id = ?
+    `).all(channel, req.user!.id) as Array<{ addr: string }>;
     const sentSet = new Set(sentRows.map((r) => r.addr));
 
     finalContactIds = finalContactIds.filter((cId) => {
@@ -261,8 +277,8 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
 
   try {
     const insertCampaign = db.prepare(`
-      INSERT INTO campaigns (name, channel, template_id, status, is_dry_run, total_recipients)
-      VALUES (?, ?, ?, 'draft', ?, ?)
+      INSERT INTO campaigns (name, channel, template_id, status, is_dry_run, total_recipients, user_id)
+      VALUES (?, ?, ?, 'draft', ?, ?, ?)
     `);
 
     const campResult = insertCampaign.run(
@@ -270,7 +286,8 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
       channel,
       template_id,
       is_dry_run ? 1 : 0,
-      finalContactIds.length
+      finalContactIds.length,
+      req.user!.id
     );
 
     const campaignId = Number(campResult.lastInsertRowid);
@@ -297,6 +314,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
         recipientsCount: finalContactIds.length,
         is_dry_run,
       },
+      userId: req.user!.id,
     });
 
     res.status(201).json({
@@ -314,7 +332,15 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
 router.post('/:id/start', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   const campaignId = parseInt(req.params.id, 10);
   const db = getDatabase();
-  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId) as { name: string } | undefined;
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
+  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ? AND (user_id = ? OR ? = 1)').get(campaignId, userId, isSuperAdmin ? 1 : 0) as { name: string } | undefined;
+  if (!camp) {
+    res.status(404).json({ success: false, error: 'Campaign not found' });
+    return;
+  }
+
   await campaignQueue.startCampaign(campaignId);
 
   logActivity({
@@ -322,6 +348,7 @@ router.post('/:id/start', requireAuth, async (req: AuthRequest, res: Response): 
     action: 'start',
     title: `إطلاق وبدء إرسال الحملة: "${camp?.name || `#${campaignId}`}"`,
     details: { campaignId },
+    userId,
   });
 
   res.json({ success: true, message: 'Campaign started' });
@@ -331,7 +358,15 @@ router.post('/:id/start', requireAuth, async (req: AuthRequest, res: Response): 
 router.post('/:id/pause', requireAuth, (req: AuthRequest, res: Response): void => {
   const campaignId = parseInt(req.params.id, 10);
   const db = getDatabase();
-  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId) as { name: string } | undefined;
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
+  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ? AND (user_id = ? OR ? = 1)').get(campaignId, userId, isSuperAdmin ? 1 : 0) as { name: string } | undefined;
+  if (!camp) {
+    res.status(404).json({ success: false, error: 'Campaign not found' });
+    return;
+  }
+
   campaignQueue.pauseCampaign(campaignId);
 
   logActivity({
@@ -340,6 +375,7 @@ router.post('/:id/pause', requireAuth, (req: AuthRequest, res: Response): void =
     title: `إيقاف مؤقت للحملة: "${camp?.name || `#${campaignId}`}"`,
     details: { campaignId },
     status: 'warning',
+    userId,
   });
 
   res.json({ success: true, message: 'Campaign paused' });
@@ -349,7 +385,15 @@ router.post('/:id/pause', requireAuth, (req: AuthRequest, res: Response): void =
 router.post('/:id/resume', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   const campaignId = parseInt(req.params.id, 10);
   const db = getDatabase();
-  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId) as { name: string } | undefined;
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
+  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ? AND (user_id = ? OR ? = 1)').get(campaignId, userId, isSuperAdmin ? 1 : 0) as { name: string } | undefined;
+  if (!camp) {
+    res.status(404).json({ success: false, error: 'Campaign not found' });
+    return;
+  }
+
   await campaignQueue.resumeCampaign(campaignId);
 
   logActivity({
@@ -357,6 +401,7 @@ router.post('/:id/resume', requireAuth, async (req: AuthRequest, res: Response):
     action: 'resume',
     title: `استئناف إرسال الحملة: "${camp?.name || `#${campaignId}`}"`,
     details: { campaignId },
+    userId,
   });
 
   res.json({ success: true, message: 'Campaign resumed' });
@@ -366,7 +411,15 @@ router.post('/:id/resume', requireAuth, async (req: AuthRequest, res: Response):
 router.post('/:id/cancel', requireAuth, (req: AuthRequest, res: Response): void => {
   const campaignId = parseInt(req.params.id, 10);
   const db = getDatabase();
-  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ?').get(campaignId) as { name: string } | undefined;
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
+  const camp = db.prepare('SELECT name FROM campaigns WHERE id = ? AND (user_id = ? OR ? = 1)').get(campaignId, userId, isSuperAdmin ? 1 : 0) as { name: string } | undefined;
+  if (!camp) {
+    res.status(404).json({ success: false, error: 'Campaign not found' });
+    return;
+  }
+
   campaignQueue.cancelCampaign(campaignId);
 
   logActivity({
@@ -375,6 +428,7 @@ router.post('/:id/cancel', requireAuth, (req: AuthRequest, res: Response): void 
     title: `إلغاء الحملة: "${camp?.name || `#${campaignId}`}"`,
     details: { campaignId },
     status: 'warning',
+    userId,
   });
 
   res.json({ success: true, message: 'Campaign cancelled' });
@@ -389,8 +443,12 @@ router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
 
-  const campaign = db.prepare('SELECT id, name, status FROM campaigns WHERE id = ?').get(campaignId) as
+  const campaign = db
+    .prepare('SELECT id, name, status FROM campaigns WHERE id = ? AND (user_id = ? OR ? = 1)')
+    .get(campaignId, userId, isSuperAdmin ? 1 : 0) as
     | { id: number; name: string; status: string }
     | undefined;
 
@@ -487,7 +545,7 @@ router.post('/test-send', requireAuth, async (req: AuthRequest, res: Response): 
   const renderedBody = renderTemplate(template.body, sampleVars);
 
   if (channel === 'email') {
-    const provider = getEmailProvider();
+    const provider = getEmailProvider(req.user!.id);
     const result = await provider.sendEmail({
       to: recipient_address,
       subject: renderedSubject,
@@ -501,6 +559,7 @@ router.post('/test-send', requireAuth, async (req: AuthRequest, res: Response): 
       title: `إرسال تجريبي (بريد) إلى: ${recipient_address}`,
       details: { channel: 'email', recipient_address, template_id },
       status: result.success ? 'success' : 'failed',
+      userId: req.user!.id,
     });
 
     res.json({
@@ -605,7 +664,7 @@ router.post('/send-direct', requireAuth, async (req: AuthRequest, res: Response)
     sendSuccess = true;
     providerResp = 'Simulated direct dispatch (Dry Run)';
   } else if (channel === 'email') {
-    const provider = getEmailProvider();
+    const provider = getEmailProvider(req.user!.id);
     const result = await provider.sendEmail({
       to: recipient_address,
       subject: renderedSubject,
@@ -629,34 +688,36 @@ router.post('/send-direct', requireAuth, async (req: AuthRequest, res: Response)
 
   // Find or optionally create contact & company for linking
   let contactId: number | null = null;
+  const userId = req.user!.id;
   try {
     const existing = db.prepare(
-      'SELECT id FROM contacts WHERE (email = ? AND email IS NOT NULL) OR (whatsapp_number = ? AND whatsapp_number IS NOT NULL)'
-    ).get(recipient_address, recipient_address) as { id: number } | undefined;
+      'SELECT id FROM contacts WHERE user_id = ? AND ((email = ? AND email IS NOT NULL) OR (whatsapp_number = ? AND whatsapp_number IS NOT NULL))'
+    ).get(userId, recipient_address, recipient_address) as { id: number } | undefined;
 
     if (existing) {
       contactId = existing.id;
     } else if (save_to_contacts || person_name || company_name) {
       let companyId: number | null = null;
       if (company_name) {
-        const existingCo = db.prepare('SELECT id FROM companies WHERE name = ?').get(company_name) as { id: number } | undefined;
+        const existingCo = db.prepare('SELECT id FROM companies WHERE name = ? AND user_id = ?').get(company_name, userId) as { id: number } | undefined;
         if (existingCo) {
           companyId = existingCo.id;
         } else {
-          const ins = db.prepare("INSERT INTO companies (name, created_at, updated_at) VALUES (?, datetime('now'), datetime('now'))").run(company_name);
+          const ins = db.prepare("INSERT INTO companies (name, created_at, updated_at, user_id) VALUES (?, datetime('now'), datetime('now'), ?)").run(company_name, userId);
           companyId = Number(ins.lastInsertRowid);
         }
       }
 
       const ins = db.prepare(`
-        INSERT INTO contacts (company_id, person_name, job_title, email, whatsapp_number, consent_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 'active', datetime('now'), datetime('now'))
+        INSERT INTO contacts (company_id, person_name, job_title, email, whatsapp_number, consent_status, created_at, updated_at, user_id)
+        VALUES (?, ?, ?, ?, ?, 'active', datetime('now'), datetime('now'), ?)
       `).run(
         companyId,
         person_name || null,
         job_title || null,
         channel === 'email' ? recipient_address : null,
-        (channel as string) === 'whatsapp' ? recipient_address : null
+        (channel as string) === 'whatsapp' ? recipient_address : null,
+        userId
       );
       contactId = Number(ins.lastInsertRowid);
     }
@@ -669,9 +730,9 @@ router.post('/send-direct', requireAuth, async (req: AuthRequest, res: Response)
     db.prepare(`
       INSERT INTO message_log (
         campaign_id, contact_id, channel, recipient_address,
-        subject, rendered_body, status, provider_response, error, created_at
+        subject, rendered_body, status, provider_response, error, created_at, user_id
       ) VALUES (
-        NULL, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now')
+        NULL, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?
       )
     `).run(
       contactId,
@@ -681,7 +742,8 @@ router.post('/send-direct', requireAuth, async (req: AuthRequest, res: Response)
       renderedBody,
       is_dry_run ? 'dry_run' : sendSuccess ? 'sent' : 'failed',
       providerResp || null,
-      errorMsg || null
+      errorMsg || null,
+      userId
     );
 
     logActivity({
@@ -696,6 +758,7 @@ router.post('/send-direct', requireAuth, async (req: AuthRequest, res: Response)
         is_dry_run,
       },
       status: sendSuccess ? 'success' : 'failed',
+      userId,
     });
   } catch (err: any) {
     console.error('Failed to log message:', err);

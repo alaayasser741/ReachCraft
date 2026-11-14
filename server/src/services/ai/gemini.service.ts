@@ -1,6 +1,7 @@
 import { getDatabase } from '../../db/connection.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
+import { decryptSecret } from '../encryption.service.js';
 
 export interface SpamAnalysisResult {
   score: number; // 0 - 100
@@ -38,7 +39,18 @@ export class GeminiService {
     'gemini-3-flash-preview',
   ];
 
-  public getApiKey(): string | null {
+  public getApiKey(userId?: number): string | null {
+    if (userId) {
+      try {
+        const db = getDatabase();
+        const row = db.prepare('SELECT gemini_api_key_encrypted, gemini_api_key_iv, gemini_api_key_tag FROM user_integrations WHERE user_id = ?').get(userId) as any;
+        if (row?.gemini_api_key_encrypted) {
+          const decrypted = decryptSecret(row.gemini_api_key_encrypted, row.gemini_api_key_iv, row.gemini_api_key_tag);
+          if (decrypted && decrypted.trim().length > 0) return decrypted.trim();
+        }
+      } catch {}
+    }
+
     try {
       const db = getDatabase();
       const row = db.prepare("SELECT value FROM app_settings WHERE key = 'gemini_api_key'").get() as

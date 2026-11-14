@@ -18,6 +18,7 @@ import settingsRoutes from './routes/settings.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import inboxRoutes from './routes/inbox.routes.js';
 import unsubscribeRoutes from './routes/unsubscribe.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 
 export function createApp(): express.Application {
   const app = express();
@@ -57,13 +58,21 @@ export function createApp(): express.Application {
   app.use('/api/settings', settingsRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/inbox', inboxRoutes);
+  app.use('/api/admin', adminRoutes);
 
   // Public Unsubscribe Endpoint
   app.use('/unsubscribe', unsubscribeRoutes);
 
   // Serve Client SPA in production/standalone mode if dist exists
-  const clientDistPath = path.resolve(process.cwd(), '../client/dist');
-  if (fs.existsSync(clientDistPath)) {
+  const candidateDistPaths = [
+    path.resolve(process.cwd(), 'client/dist'),
+    path.resolve(process.cwd(), '../client/dist'),
+    path.resolve(process.cwd(), 'dist/client'),
+    path.resolve(process.cwd(), 'public'),
+  ];
+  const clientDistPath = candidateDistPaths.find((p) => fs.existsSync(p));
+
+  if (clientDistPath) {
     app.use(express.static(clientDistPath));
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api') || req.path.startsWith('/unsubscribe')) {

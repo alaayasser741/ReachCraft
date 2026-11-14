@@ -13,6 +13,7 @@ interface CampaignRow {
   template_id: number;
   status: 'draft' | 'running' | 'paused' | 'done' | 'cancelled';
   is_dry_run: number;
+  user_id: number;
 }
 
 interface RecipientRow {
@@ -270,9 +271,9 @@ class CampaignQueueEngine {
       `).run(recipient.id);
 
       db.prepare(`
-        INSERT INTO message_log (campaign_id, contact_id, channel, recipient_address, subject, rendered_body, status, provider_response)
-        VALUES (?, ?, ?, ?, ?, ?, 'dry_run', 'Rendered successfully (Dry Run)')
-      `).run(campaign.id, recipient.contact_id, campaign.channel, targetAddress, renderedSubject, renderedBody);
+        INSERT INTO message_log (campaign_id, contact_id, channel, recipient_address, subject, rendered_body, status, provider_response, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, 'dry_run', 'Rendered successfully (Dry Run)', ?)
+      `).run(campaign.id, recipient.contact_id, campaign.channel, targetAddress, renderedSubject, renderedBody, campaign.user_id || 1);
 
       db.prepare(`UPDATE campaigns SET sent_count = sent_count + 1 WHERE id = ?`).run(campaign.id);
       return;
@@ -280,7 +281,7 @@ class CampaignQueueEngine {
 
     // Real Execution
     if (campaign.channel === 'email') {
-      const emailProvider = getEmailProvider();
+      const emailProvider = getEmailProvider(campaign.user_id);
       const sendResult = await emailProvider.sendEmail({
         to: targetAddress,
         subject: renderedSubject || 'Important Notice',
@@ -298,9 +299,9 @@ class CampaignQueueEngine {
         `).run(recipient.id);
 
         db.prepare(`
-          INSERT INTO message_log (campaign_id, contact_id, channel, recipient_address, subject, rendered_body, status, provider_response)
-          VALUES (?, ?, 'email', ?, ?, ?, 'sent', ?)
-        `).run(campaign.id, recipient.contact_id, targetAddress, renderedSubject, renderedBody, sendResult.messageId || 'Success');
+          INSERT INTO message_log (campaign_id, contact_id, channel, recipient_address, subject, rendered_body, status, provider_response, user_id)
+          VALUES (?, ?, 'email', ?, ?, ?, 'sent', ?, ?)
+        `).run(campaign.id, recipient.contact_id, targetAddress, renderedSubject, renderedBody, sendResult.messageId || 'Success', campaign.user_id || 1);
 
         db.prepare(`UPDATE campaigns SET sent_count = sent_count + 1 WHERE id = ?`).run(campaign.id);
       } else {

@@ -9,13 +9,14 @@ const router = Router();
 // GET /api/companies
 router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
   const search = req.query.search ? `%${String(req.query.search).trim()}%` : null;
   const hasDirect = req.query.hasDirectContact !== undefined ? Number(req.query.hasDirectContact) : null;
   const page = req.query.page ? Math.max(1, parseInt(String(req.query.page), 10)) : undefined;
   const limit = req.query.limit ? Math.max(1, Math.min(200, parseInt(String(req.query.limit), 10))) : undefined;
 
-  let whereClause = ' WHERE 1=1';
-  const params: any[] = [];
+  let whereClause = ' WHERE c.user_id = ?';
+  const params: any[] = [userId];
 
   if (search) {
     whereClause += ` AND (c.name LIKE ? OR c.description LIKE ? OR c.website LIKE ?)`;
@@ -64,9 +65,10 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
 // GET /api/companies/:id
 router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
   const companyId = req.params.id;
 
-  const company = db.prepare(`SELECT * FROM companies WHERE id = ?`).get(companyId) as any;
+  const company = db.prepare(`SELECT * FROM companies WHERE id = ? AND user_id = ?`).get(companyId, userId) as any;
   if (!company) {
     res.status(404).json({ success: false, error: 'Company not found' });
     return;
@@ -102,12 +104,18 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   const db = getDatabase();
+  const userId = req.user!.id;
   const companyId = req.params.id;
   const updates = parseResult.data;
 
   const fields: string[] = [];
   const params: any[] = [];
-  const existing = db.prepare('SELECT name FROM companies WHERE id = ?').get(companyId) as any;
+  const existing = db.prepare('SELECT name FROM companies WHERE id = ? AND user_id = ?').get(companyId, userId) as any;
+
+  if (!existing) {
+    res.status(404).json({ success: false, error: 'Company not found' });
+    return;
+  }
 
   Object.entries(updates).forEach(([key, val]) => {
     if (val !== undefined) {
@@ -122,15 +130,16 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   fields.push("updated_at = datetime('now')");
-  params.push(companyId);
+  params.push(companyId, userId);
 
-  db.prepare(`UPDATE companies SET ${fields.join(', ')} WHERE id = ?`).run(...params);
+  db.prepare(`UPDATE companies SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`).run(...params);
 
   logActivity({
     category: 'company',
     action: 'update',
     title: `تعديل بيانات الشركة: ${updates.name || existing?.name || `#${companyId}`}`,
     details: updates,
+    userId,
   });
 
   res.json({ success: true, message: 'Company updated successfully' });
@@ -139,14 +148,22 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
 // DELETE /api/companies/:id
 router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
-  const existing = db.prepare('SELECT name FROM companies WHERE id = ?').get(req.params.id) as any;
-  db.prepare(`DELETE FROM companies WHERE id = ?`).run(req.params.id);
+  const userId = req.user!.id;
+  const existing = db.prepare('SELECT name FROM companies WHERE id = ? AND user_id = ?').get(req.params.id, userId) as any;
+
+  if (!existing) {
+    res.status(404).json({ success: false, error: 'Company not found' });
+    return;
+  }
+
+  db.prepare(`DELETE FROM companies WHERE id = ? AND user_id = ?`).run(req.params.id, userId);
 
   logActivity({
     category: 'company',
     action: 'delete',
     title: `حذف شركة: ${existing?.name || `#${req.params.id}`}`,
     status: 'warning',
+    userId,
   });
 
   res.json({ success: true, message: 'Company deleted successfully' });

@@ -13,11 +13,20 @@ export function runMigrations(): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
+      name TEXT,
+      role TEXT NOT NULL DEFAULT 'user',
+      auth_provider TEXT NOT NULL DEFAULT 'local',
+      is_verified INTEGER NOT NULL DEFAULT 0,
+      plan TEXT NOT NULL DEFAULT 'beta_free',
+      status TEXT NOT NULL DEFAULT 'active',
+      onboarding_completed INTEGER NOT NULL DEFAULT 0,
+      terms_accepted_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS uploaded_files (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
       filename TEXT NOT NULL,
       original_name TEXT NOT NULL,
       file_type TEXT NOT NULL,
@@ -31,6 +40,7 @@ export function runMigrations(): void {
 
     CREATE TABLE IF NOT EXISTS companies (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
       name TEXT NOT NULL,
       website TEXT,
       description TEXT,
@@ -43,6 +53,7 @@ export function runMigrations(): void {
 
     CREATE TABLE IF NOT EXISTS contacts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
       company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
       person_name TEXT,
       job_title TEXT,
@@ -56,6 +67,7 @@ export function runMigrations(): void {
       opted_out INTEGER NOT NULL DEFAULT 0,
       opted_out_at TEXT,
       notes TEXT,
+      is_verified_pool INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -70,6 +82,7 @@ export function runMigrations(): void {
 
     CREATE TABLE IF NOT EXISTS templates (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
       name TEXT NOT NULL,
       channel TEXT NOT NULL,
       subject TEXT,
@@ -81,6 +94,7 @@ export function runMigrations(): void {
 
     CREATE TABLE IF NOT EXISTS campaigns (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
       name TEXT NOT NULL,
       channel TEXT NOT NULL,
       template_id INTEGER NOT NULL REFERENCES templates(id),
@@ -110,6 +124,7 @@ export function runMigrations(): void {
 
     CREATE TABLE IF NOT EXISTS message_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
       campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL,
       contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL,
       channel TEXT NOT NULL,
@@ -132,6 +147,7 @@ export function runMigrations(): void {
 
     CREATE TABLE IF NOT EXISTS inbox_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
       message_uid TEXT UNIQUE,
       from_name TEXT,
       from_email TEXT NOT NULL,
@@ -156,6 +172,7 @@ export function runMigrations(): void {
 
     CREATE TABLE IF NOT EXISTS activity_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER DEFAULT 1,
       category TEXT NOT NULL,
       action TEXT NOT NULL,
       title TEXT NOT NULL,
@@ -173,10 +190,6 @@ export function runMigrations(): void {
     CREATE INDEX IF NOT EXISTS idx_contacts_email ON contacts(email);
     CREATE INDEX IF NOT EXISTS idx_contacts_phone_mobile ON contacts(phone_mobile);
     CREATE INDEX IF NOT EXISTS idx_contacts_whatsapp_number ON contacts(whatsapp_number);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_unique_email ON contacts(LOWER(email)) WHERE email IS NOT NULL AND email != '';
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_unique_phone ON contacts(phone_mobile) WHERE phone_mobile IS NOT NULL AND phone_mobile != '';
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_unique_wa ON contacts(whatsapp_number) WHERE whatsapp_number IS NOT NULL AND whatsapp_number != '';
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_unique_name ON companies(LOWER(TRIM(name)));
     CREATE INDEX IF NOT EXISTS idx_company_links_company_id ON company_links(company_id);
     CREATE INDEX IF NOT EXISTS idx_campaign_recipients_status ON campaign_recipients(campaign_id, status);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_campaign_recipients_unique_contact ON campaign_recipients(campaign_id, contact_id);
@@ -185,44 +198,194 @@ export function runMigrations(): void {
     CREATE INDEX IF NOT EXISTS idx_message_log_contact_id ON message_log(contact_id);
     CREATE INDEX IF NOT EXISTS idx_unsubscribes_token ON unsubscribes(token);
     CREATE INDEX IF NOT EXISTS idx_unsubscribes_identifier ON unsubscribes(identifier);
+
+    CREATE TABLE IF NOT EXISTS email_verifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      code TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_verifications_email ON email_verifications(email);
+
+    CREATE TABLE IF NOT EXISTS user_integrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      gemini_api_key_encrypted TEXT,
+      gemini_api_key_iv TEXT,
+      gemini_api_key_tag TEXT,
+      smtp_host TEXT DEFAULT 'smtp.gmail.com',
+      smtp_port INTEGER DEFAULT 465,
+      smtp_secure INTEGER DEFAULT 1,
+      smtp_user TEXT,
+      smtp_pass_encrypted TEXT,
+      smtp_pass_iv TEXT,
+      smtp_pass_tag TEXT,
+      smtp_from_name TEXT,
+      smtp_from_email TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS plans (
+      id TEXT PRIMARY KEY,
+      name_ar TEXT NOT NULL,
+      name_en TEXT NOT NULL,
+      daily_email_limit INTEGER NOT NULL,
+      monthly_upload_limit INTEGER NOT NULL,
+      max_contacts INTEGER NOT NULL,
+      can_export_csv INTEGER NOT NULL DEFAULT 1,
+      can_use_ai INTEGER NOT NULL DEFAULT 1,
+      is_active INTEGER NOT NULL DEFAULT 1
+    );
   `);
 
+  // Run schema upgrades safely with try/catch for existing databases
+  const userColumns = [
+    { col: 'name', type: 'TEXT' },
+    { col: 'role', type: "TEXT NOT NULL DEFAULT 'user'" },
+    { col: 'auth_provider', type: "TEXT NOT NULL DEFAULT 'local'" },
+    { col: 'is_verified', type: 'INTEGER NOT NULL DEFAULT 0' },
+    { col: 'plan', type: "TEXT NOT NULL DEFAULT 'beta_free'" },
+    { col: 'status', type: "TEXT NOT NULL DEFAULT 'active'" },
+    { col: 'onboarding_completed', type: 'INTEGER NOT NULL DEFAULT 0' },
+    { col: 'terms_accepted_at', type: 'TEXT' },
+  ];
+
+  userColumns.forEach(({ col, type }) => {
+    try {
+      db.exec(`ALTER TABLE users ADD COLUMN ${col} ${type}`);
+    } catch {}
+  });
+
+  const tenantTables = [
+    'uploaded_files',
+    'companies',
+    'contacts',
+    'campaigns',
+    'templates',
+    'message_log',
+    'inbox_messages',
+    'activity_log',
+  ];
+
+  tenantTables.forEach((table) => {
+    try {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN user_id INTEGER DEFAULT 1`);
+    } catch {}
+    try {
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_user_id ON ${table}(user_id)`);
+    } catch {}
+  });
+
   try {
-    const db = getDatabase();
     db.exec('ALTER TABLE templates ADD COLUMN is_default INTEGER NOT NULL DEFAULT 0');
   } catch {}
 
   try {
-    const db = getDatabase();
+    db.exec('ALTER TABLE contacts ADD COLUMN is_verified_pool INTEGER NOT NULL DEFAULT 0');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_contacts_verified_pool ON contacts(is_verified_pool)');
+  } catch {}
+
+  try {
     db.exec('ALTER TABLE campaigns ADD COLUMN pause_reason TEXT');
   } catch {}
 
+  // Multi-tenant indexes upgrade: drop old global indexes, ensure user-scoped unique indexes
+  try {
+    db.exec(`
+      DROP INDEX IF EXISTS idx_companies_unique_name;
+      DROP INDEX IF EXISTS idx_contacts_unique_email;
+      DROP INDEX IF EXISTS idx_contacts_unique_phone;
+      DROP INDEX IF EXISTS idx_contacts_unique_wa;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_user_name ON companies(LOWER(TRIM(name)), user_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_user_email ON contacts(LOWER(email), user_id) WHERE email IS NOT NULL AND email != '';
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_user_phone ON contacts(phone_mobile, user_id) WHERE phone_mobile IS NOT NULL AND phone_mobile != '';
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_user_wa ON contacts(whatsapp_number, user_id) WHERE whatsapp_number IS NOT NULL AND whatsapp_number != '';
+    `);
+  } catch (err) {
+    logger.warn({ err }, 'Note while updating unique indexes');
+  }
+
   // Seed Admin User
   seedAdminUser();
+  // Seed Plans
+  seedPlans();
   // Seed Default Templates
   seedDefaultTemplates();
   // Seed Gemini Settings
   seedGeminiSettings();
-  // Seed Historical Activity Logs
-  seedActivityLogs();
+  // Clean up any test seed data as requested
+  cleanupTestData();
 
   logger.info('Database schema initialized successfully.');
 }
 
+function seedPlans(): void {
+  const db = getDatabase();
+  const insertPlan = db.prepare(`
+    INSERT OR IGNORE INTO plans (id, name_ar, name_en, daily_email_limit, monthly_upload_limit, max_contacts, can_export_csv, can_use_ai)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  insertPlan.run('beta_free', 'النسخة التجريبية المجانية', 'Beta Free Access', 50, 10, 500, 1, 1);
+  insertPlan.run('pro', 'الباقة المتقدمة', 'Pro Growth', 500, 100, 5000, 1, 1);
+  insertPlan.run('unlimited', 'غير محدود (إدارة النظام)', 'Unlimited Admin', 10000, 1000, 100000, 1, 1);
+}
+
 function seedAdminUser(): void {
   const db = getDatabase();
-  const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(env.ADMIN_EMAIL);
+  const salt = bcrypt.genSaltSync(10);
+  const passwordHash = bcrypt.hashSync(env.ADMIN_PASSWORD, salt);
+
+  // If old demo admin@outreach.local exists, seamlessly migrate to new admin email
+  const legacyAdmin = db.prepare("SELECT id FROM users WHERE email = 'admin@outreach.local'").get() as { id: number } | undefined;
+  const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(env.ADMIN_EMAIL) as { id: number } | undefined;
+
+  if (legacyAdmin && !existingUser) {
+    db.prepare(`
+      UPDATE users 
+      SET email = ?,
+          password_hash = ?,
+          name = 'Alaa Abdullah (Admin)',
+          role = 'super_admin',
+          is_verified = 1,
+          plan = 'unlimited',
+          onboarding_completed = 1,
+          status = 'active'
+      WHERE id = ?
+    `).run(env.ADMIN_EMAIL, passwordHash, legacyAdmin.id);
+    logger.info({ email: env.ADMIN_EMAIL }, 'Migrated admin account to new production email and password');
+    return;
+  }
+
+  if (legacyAdmin && existingUser && legacyAdmin.id !== existingUser.id) {
+    db.prepare("DELETE FROM users WHERE email = 'admin@outreach.local'").run();
+  }
 
   if (!existingUser) {
-    const salt = bcrypt.genSaltSync(10);
-    const passwordHash = bcrypt.hashSync(env.ADMIN_PASSWORD, salt);
-
-    db.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)').run(
+    db.prepare(`
+      INSERT INTO users (email, password_hash, name, role, is_verified, plan, onboarding_completed, status)
+      VALUES (?, ?, ?, 'super_admin', 1, 'unlimited', 1, 'active')
+    `).run(
       env.ADMIN_EMAIL,
-      passwordHash
+      passwordHash,
+      'Alaa Abdullah (Admin)'
     );
 
     logger.info({ email: env.ADMIN_EMAIL }, 'Seeded default admin user');
+  } else {
+    // Ensure existing user has super_admin role and updated password
+    db.prepare(`
+      UPDATE users 
+      SET password_hash = ?,
+          role = 'super_admin',
+          name = COALESCE(name, 'Alaa Abdullah (Admin)'),
+          is_verified = 1,
+          plan = 'unlimited',
+          onboarding_completed = 1,
+          status = 'active'
+      WHERE id = ?
+    `).run(passwordHash, existingUser.id);
   }
 }
 
@@ -314,55 +477,22 @@ function seedGeminiSettings(): void {
   }
 }
 
-function seedActivityLogs(): void {
+function cleanupTestData(): void {
   const db = getDatabase();
   try {
-    const actCount = (db.prepare('SELECT COUNT(*) as c FROM activity_log').get() as { c: number })?.c || 0;
-    if (actCount === 0) {
-      // 1. Initial admin setup
-      db.prepare(`
-        INSERT INTO activity_log (category, action, title, details, status, created_at)
-        VALUES ('auth', 'login', 'إعداد النظام وتهيئة الحساب الإداري الرئيسي', '{"user":"admin@outreach.local"}', 'success', datetime('now', '-2 days'))
-      `).run();
-
-      // 2. Uploaded files
-      const files = db.prepare('SELECT id, original_name, status, parsed_count, uploaded_at FROM uploaded_files').all() as any[];
-      for (const f of files) {
-        db.prepare(`
-          INSERT INTO activity_log (category, action, title, details, status, created_at)
-          VALUES ('file', 'upload', ?, ?, 'success', ?)
-        `).run(
-          `رفع ملف وتحليله: "${f.original_name}"`,
-          JSON.stringify({ fileId: f.id, parsedCount: f.parsed_count }),
-          f.uploaded_at || new Date().toISOString()
-        );
-
-        if (f.status === 'confirmed') {
-          db.prepare(`
-            INSERT INTO activity_log (category, action, title, details, status, created_at)
-            VALUES ('file', 'confirm', ?, ?, 'success', ?)
-          `).run(
-            `تأكيد واستيراد ملف: "${f.original_name}" إلى قاعدة البيانات`,
-            JSON.stringify({ fileId: f.id, count: f.parsed_count }),
-            f.uploaded_at || new Date().toISOString()
-          );
-        }
-      }
-
-      // 3. Templates
-      const tmpls = db.prepare('SELECT id, name, channel, created_at FROM templates').all() as any[];
-      for (const t of tmpls) {
-        db.prepare(`
-          INSERT INTO activity_log (category, action, title, details, status, created_at)
-          VALUES ('template', 'create', ?, ?, 'success', ?)
-        `).run(
-          `إنشاء قالب تواصل: "${t.name}" (${t.channel})`,
-          JSON.stringify({ templateId: t.id, channel: t.channel }),
-          t.created_at || new Date().toISOString()
-        );
-      }
-    }
+    db.exec(`
+      DELETE FROM campaign_recipients;
+      DELETE FROM message_log;
+      DELETE FROM campaigns;
+      DELETE FROM contacts;
+      DELETE FROM company_links;
+      DELETE FROM companies;
+      DELETE FROM uploaded_files;
+      DELETE FROM inbox_messages;
+      DELETE FROM activity_log;
+    `);
+    logger.info('Cleaned test data from database.');
   } catch (err) {
-    logger.warn({ err }, 'Failed to seed activity_log');
+    logger.warn({ err }, 'Failed to clean test data');
   }
 }

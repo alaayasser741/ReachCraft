@@ -11,8 +11,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   CLIENT_URL: z.string().default('http://localhost:5173'),
 
-  ADMIN_EMAIL: z.string().email().default('admin@outreach.local'),
-  ADMIN_PASSWORD: z.string().min(6).default('adminStrongPass2026!'),
+  ADMIN_EMAIL: z.string().email().default('alaayasser2018@gmail.com'),
+  ADMIN_PASSWORD: z.string().min(6).default('alaa7415@@'),
   JWT_SECRET: z.string().min(16).default('super_secret_jwt_key_at_least_32_characters_long_for_security_2026'),
   JWT_EXPIRES_IN: z.string().default('7d'),
 
@@ -22,10 +22,10 @@ const envSchema = z.object({
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.coerce.number().default(465),
   SMTP_SECURE: z.coerce.boolean().default(true),
-  SMTP_USER: z.string().default('admin@outreach.local'),
+  SMTP_USER: z.string().default('verify.reachcraft@gmail.com'),
   SMTP_PASS: z.string().default(''),
-  SMTP_FROM_NAME: z.string().default('Outreach Team'),
-  SMTP_FROM_EMAIL: z.string().default('admin@outreach.local'),
+  SMTP_FROM_NAME: z.string().default('ReachCraft'),
+  SMTP_FROM_EMAIL: z.string().default('verify.reachcraft@gmail.com'),
   EMAIL_DAILY_CAP: z.coerce.number().default(100),
   EMAIL_MIN_INTERVAL_SEC: z.coerce.number().default(20),
   EMAIL_MAX_INTERVAL_SEC: z.coerce.number().default(35),
@@ -40,6 +40,10 @@ const envSchema = z.object({
 
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default('gemini-3.5-flash-lite'),
+
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  ENCRYPTION_KEY: z.string().min(32).default('feb16bf61fd8a0d0bf7584224cf29552f539df6ad764f1e14826e417955fdf68'),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

@@ -11,12 +11,19 @@ const router = Router();
 // GET /api/inbox
 router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+  const showAll = isSuperAdmin && req.query.allUsers === 'true';
+
   const { category, search, limit = '50', offset = '0' } = req.query;
 
   const numLimit = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 50));
   const numOffset = Math.max(0, parseInt(String(offset), 10) || 0);
 
   // Compute category counters
+  const userFilterSql = showAll ? '' : 'WHERE user_id = ?';
+  const countParams = showAll ? [] : [userId];
+
   const countRows = db.prepare(`
     SELECT 
       COUNT(*) as total_all,
@@ -25,7 +32,8 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
       SUM(CASE WHEN ai_category = 'company_update' THEN 1 ELSE 0 END) as total_company,
       SUM(CASE WHEN ai_category = 'direct_reply' THEN 1 ELSE 0 END) as total_reply
     FROM inbox_messages
-  `).get() as any;
+    ${userFilterSql}
+  `).get(...countParams) as any;
 
   const counts = {
     all: countRows?.total_all || 0,
@@ -38,6 +46,11 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   // Build filter query
   let whereClauses: string[] = [];
   let params: any[] = [];
+
+  if (!showAll) {
+    whereClauses.push('user_id = ?');
+    params.push(userId);
+  }
 
   if (category && category !== 'all') {
     if (category === 'unread') {
@@ -78,9 +91,9 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
 });
 
 // POST /api/inbox/sync
-router.post('/sync', requireAuth, async (_req: AuthRequest, res: Response): Promise<void> => {
+router.post('/sync', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const result = await imapReaderService.syncInbox(30);
+    const result = await imapReaderService.syncInbox(30, req.user!.id);
     res.json({
       success: true,
       message: `تم مزامنة البريد بنجاح! تم استيراد ${result.newEmailsCount} إيميل جديد وفلترتها بالذكاء الاصطناعي.`,
@@ -98,9 +111,15 @@ router.post('/sync', requireAuth, async (_req: AuthRequest, res: Response): Prom
 // GET /api/inbox/:id
 router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
   const id = parseInt(req.params.id, 10);
 
-  const message = db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(id) as any;
+  const message = db.prepare(`
+    SELECT * FROM inbox_messages 
+    WHERE id = ? AND (user_id = ? OR ? = 1)
+  `).get(id, userId, isSuperAdmin ? 1 : 0) as any;
+
   if (!message) {
     res.status(404).json({ success: false, error: 'الرسالة غير موجودة' });
     return;
@@ -123,10 +142,16 @@ router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
 // PATCH /api/inbox/:id/read
 router.patch('/:id/read', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
   const id = parseInt(req.params.id, 10);
   const isRead = req.body.isRead ? 1 : 0;
 
-  const message = db.prepare('SELECT id, message_uid FROM inbox_messages WHERE id = ?').get(id) as any;
+  const message = db.prepare(`
+    SELECT id, message_uid FROM inbox_messages 
+    WHERE id = ? AND (user_id = ? OR ? = 1)
+  `).get(id, userId, isSuperAdmin ? 1 : 0) as any;
+
   if (!message) {
     res.status(404).json({ success: false, error: 'الرسالة غير موجودة' });
     return;
@@ -156,8 +181,13 @@ router.post('/:id/draft-reply', requireAuth, async (req: AuthRequest, res: Respo
   }
 
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
   const id = parseInt(req.params.id, 10);
-  const message = db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(id) as any;
+  const message = db.prepare(`
+    SELECT * FROM inbox_messages 
+    WHERE id = ? AND (user_id = ? OR ? = 1)
+  `).get(id, userId, isSuperAdmin ? 1 : 0) as any;
 
   if (!message) {
     res.status(404).json({ success: false, error: 'Email message not found' });
@@ -191,8 +221,13 @@ router.post('/:id/send-reply', requireAuth, async (req: AuthRequest, res: Respon
   }
 
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
   const id = parseInt(req.params.id, 10);
-  const message = db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(id) as any;
+  const message = db.prepare(`
+    SELECT * FROM inbox_messages 
+    WHERE id = ? AND (user_id = ? OR ? = 1)
+  `).get(id, userId, isSuperAdmin ? 1 : 0) as any;
 
   if (!message) {
     res.status(404).json({ success: false, error: 'الرسالة غير موجودة' });
@@ -204,6 +239,7 @@ router.post('/:id/send-reply', requireAuth, async (req: AuthRequest, res: Respon
     recipientEmail: message.from_email,
     subject: message.subject,
     replyText: parseResult.data.replyText,
+    userId,
   });
 
   if (result.success) {
@@ -216,8 +252,13 @@ router.post('/:id/send-reply', requireAuth, async (req: AuthRequest, res: Respon
 // POST /api/inbox/:id/translate
 router.post('/:id/translate', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
   const id = parseInt(req.params.id, 10);
-  const message = db.prepare('SELECT * FROM inbox_messages WHERE id = ?').get(id) as any;
+  const message = db.prepare(`
+    SELECT * FROM inbox_messages 
+    WHERE id = ? AND (user_id = ? OR ? = 1)
+  `).get(id, userId, isSuperAdmin ? 1 : 0) as any;
 
   if (!message) {
     res.status(404).json({ success: false, error: 'الرسالة غير موجودة' });
@@ -246,13 +287,19 @@ router.post('/:id/translate', requireAuth, async (req: AuthRequest, res: Respons
 // DELETE /api/inbox/:id
 router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
   const id = parseInt(req.params.id, 10);
 
-  const info = db.prepare('DELETE FROM inbox_messages WHERE id = ?').run(id);
+  const info = db.prepare(`
+    DELETE FROM inbox_messages 
+    WHERE id = ? AND (user_id = ? OR ? = 1)
+  `).run(id, userId, isSuperAdmin ? 1 : 0);
+
   if (info.changes > 0) {
     res.json({ success: true, message: 'تم حذف الرسالة بنجاح' });
   } else {
-    res.status(404).json({ success: false, error: 'الرسالة غير موجودة' });
+    res.status(404).json({ success: false, error: 'الرسالة غير موجودة أو لا تملك صلاحية حذفها' });
   }
 });
 

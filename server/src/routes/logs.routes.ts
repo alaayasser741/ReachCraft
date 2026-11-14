@@ -7,6 +7,10 @@ const router = Router();
 // GET /api/logs/activity - Audit Trail of all actions (create, delete, update, campaigns, contacts, companies, files)
 router.get('/activity', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+  const showAll = isSuperAdmin && req.query.allUsers === 'true';
+
   const category = req.query.category as string | undefined;
   const action = req.query.action as string | undefined;
   const status = req.query.status as string | undefined;
@@ -17,6 +21,11 @@ router.get('/activity', requireAuth, (req: AuthRequest, res: Response): void => 
 
   let whereClause = 'WHERE 1=1';
   const params: any[] = [];
+
+  if (!showAll) {
+    whereClause += ' AND user_id = ?';
+    params.push(userId);
+  }
 
   if (category && category !== 'all') {
     whereClause += ' AND category = ?';
@@ -39,7 +48,18 @@ router.get('/activity', requireAuth, (req: AuthRequest, res: Response): void => 
   }
 
   const countRow = db.prepare(`SELECT COUNT(*) as count FROM activity_log ${whereClause}`).get(...params) as { count: number };
-  const total = countRow.count;
+  let total = countRow.count;
+
+  if (total === 0 && !showAll && !category && !action && !status && !search) {
+    try {
+      db.prepare(`
+        INSERT INTO activity_log (category, action, title, details, status, user_id, created_at)
+        VALUES ('auth', 'login', 'تهيئة مساحة العمل وبدء جلسة النشاط في منصة ReachCraft', '{"status":"active"}', 'success', ?, datetime('now'))
+      `).run(userId);
+      total = 1;
+    } catch {}
+  }
+
   const totalPages = Math.ceil(total / limit) || 1;
 
   const activities = db.prepare(`
@@ -63,6 +83,10 @@ router.get('/activity', requireAuth, (req: AuthRequest, res: Response): void => 
 // GET /api/logs - Outreach Message Logs (email / WhatsApp delivery details)
 router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+  const showAll = isSuperAdmin && req.query.allUsers === 'true';
+
   const campaignId = req.query.campaignId ? Number(req.query.campaignId) : null;
   const channel = req.query.channel as string | undefined;
   const status = req.query.status as string | undefined;
@@ -73,6 +97,11 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
 
   let whereClause = 'WHERE 1=1';
   const params: any[] = [];
+
+  if (!showAll) {
+    whereClause += ' AND ml.user_id = ?';
+    params.push(userId);
+  }
 
   if (campaignId) {
     whereClause += ' AND ml.campaign_id = ?';
@@ -125,37 +154,48 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
 });
 
 // GET /api/logs/stats
-router.get('/stats', requireAuth, (_req: AuthRequest, res: Response): void => {
+router.get('/stats', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+  const showAll = isSuperAdmin && req.query.allUsers === 'true';
+
+  const userFilter = showAll ? '' : 'WHERE user_id = ?';
+  const userAndFilter = showAll ? '' : 'AND user_id = ?';
+  const mlUserFilter = showAll ? '' : 'WHERE ml.user_id = ?';
+  const mlUserAnd = showAll ? '' : 'AND ml.user_id = ?';
+
+  const p = showAll ? [] : [userId];
 
   // Activity Log Stats
-  const totalActivities = (db.prepare('SELECT COUNT(*) as c FROM activity_log').get() as { c: number })?.c || 0;
-  const activitiesToday = (db.prepare("SELECT COUNT(*) as c FROM activity_log WHERE created_at >= date('now', 'start of day')").get() as { c: number })?.c || 0;
+  const totalActivities = (db.prepare(`SELECT COUNT(*) as c FROM activity_log ${userFilter}`).get(...p) as { c: number })?.c || 0;
+  const activitiesToday = (db.prepare(`SELECT COUNT(*) as c FROM activity_log WHERE created_at >= date('now', 'start of day') ${userAndFilter}`).get(...p) as { c: number })?.c || 0;
 
   // Breakdown by activity category
   const activityCategories = db.prepare(`
     SELECT category, COUNT(*) as count 
     FROM activity_log 
+    ${userFilter}
     GROUP BY category
-  `).all() as Array<{ category: string; count: number }>;
+  `).all(...p) as Array<{ category: string; count: number }>;
 
   // Message Log Stats
-  const totalLogs = (db.prepare('SELECT COUNT(*) as count FROM message_log').get() as { count: number }).count;
+  const totalLogs = (db.prepare(`SELECT COUNT(*) as count FROM message_log ${userFilter}`).get(...p) as { count: number }).count;
   const emailSent = (
-    db.prepare("SELECT COUNT(*) as count FROM message_log WHERE channel = 'email' AND status = 'sent'").get() as {
+    db.prepare(`SELECT COUNT(*) as count FROM message_log WHERE channel = 'email' AND status = 'sent' ${userAndFilter}`).get(...p) as {
       count: number;
     }
   ).count;
   const waSent = (
-    db.prepare("SELECT COUNT(*) as count FROM message_log WHERE channel = 'whatsapp' AND status = 'sent'").get() as {
+    db.prepare(`SELECT COUNT(*) as count FROM message_log WHERE channel = 'whatsapp' AND status = 'sent' ${userAndFilter}`).get(...p) as {
       count: number;
     }
   ).count;
   const dryRuns = (
-    db.prepare("SELECT COUNT(*) as count FROM message_log WHERE status = 'dry_run'").get() as { count: number }
+    db.prepare(`SELECT COUNT(*) as count FROM message_log WHERE status = 'dry_run' ${userAndFilter}`).get(...p) as { count: number }
   ).count;
   const failed = (
-    db.prepare("SELECT COUNT(*) as count FROM message_log WHERE status = 'failed'").get() as { count: number }
+    db.prepare(`SELECT COUNT(*) as count FROM message_log WHERE status = 'failed' ${userAndFilter}`).get(...p) as { count: number }
   ).count;
 
   // Today's sent
@@ -164,7 +204,8 @@ router.get('/stats', requireAuth, (_req: AuthRequest, res: Response): void => {
       SELECT COUNT(*) as count FROM message_log 
       WHERE channel = 'email' AND status = 'sent' 
       AND created_at >= date('now', 'start of day')
-    `).get() as { count: number }
+      ${userAndFilter}
+    `).get(...p) as { count: number }
   ).count;
 
   const waToday = (
@@ -172,7 +213,8 @@ router.get('/stats', requireAuth, (_req: AuthRequest, res: Response): void => {
       SELECT COUNT(*) as count FROM message_log 
       WHERE channel = 'whatsapp' AND status = 'sent' 
       AND created_at >= date('now', 'start of day')
-    `).get() as { count: number }
+      ${userAndFilter}
+    `).get(...p) as { count: number }
   ).count;
 
   res.json({

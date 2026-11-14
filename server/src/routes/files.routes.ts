@@ -75,8 +75,8 @@ router.post('/upload', requireAuth, upload.single('file'), async (req: AuthReque
 
     // Insert into uploaded_files table
     const insertStmt = db.prepare(`
-      INSERT INTO uploaded_files (filename, original_name, file_type, file_size, status, parsed_count, raw_data_json)
-      VALUES (?, ?, ?, ?, 'parsed', ?, ?)
+      INSERT INTO uploaded_files (filename, original_name, file_type, file_size, status, parsed_count, raw_data_json, user_id)
+      VALUES (?, ?, ?, ?, 'parsed', ?, ?, ?)
     `);
 
     const result = insertStmt.run(
@@ -85,7 +85,8 @@ router.post('/upload', requireAuth, upload.single('file'), async (req: AuthReque
       ext,
       fileSize,
       parseResult.totalCompanies,
-      JSON.stringify(parseResult)
+      JSON.stringify(parseResult),
+      req.user!.id
     );
 
     const fileId = Number(result.lastInsertRowid);
@@ -95,6 +96,7 @@ router.post('/upload', requireAuth, upload.single('file'), async (req: AuthReque
       action: 'upload',
       title: `رفع ملف وتحليله: "${originalName}"`,
       details: { fileId, fileSize, format: ext, totalCompanies: parseResult.totalCompanies },
+      userId: req.user!.id,
     });
 
     res.json({
@@ -113,13 +115,15 @@ router.post('/upload', requireAuth, upload.single('file'), async (req: AuthReque
 });
 
 // GET /api/files
-router.get('/', requireAuth, (_req: AuthRequest, res: Response): void => {
+router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
   const files = db.prepare(`
     SELECT id, filename, original_name, file_type, file_size, uploaded_at, status, parsed_count
     FROM uploaded_files
+    WHERE user_id = ?
     ORDER BY uploaded_at DESC
-  `).all();
+  `).all(userId);
 
   res.json({ success: true, files });
 });
@@ -127,11 +131,14 @@ router.get('/', requireAuth, (_req: AuthRequest, res: Response): void => {
 // GET /api/files/:id
 router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
   const file = db.prepare(`
     SELECT id, filename, original_name, file_type, file_size, uploaded_at, status, parsed_count, raw_data_json, error_message
     FROM uploaded_files
-    WHERE id = ?
-  `).get(req.params.id) as any;
+    WHERE id = ? AND (user_id = ? OR ? = 1)
+  `).get(req.params.id, userId, isSuperAdmin ? 1 : 0) as any;
 
   if (!file) {
     res.status(404).json({ success: false, error: 'File not found' });
@@ -169,7 +176,10 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
 
   const db = getDatabase();
 
-  const file = db.prepare('SELECT id, status, original_name FROM uploaded_files WHERE id = ?').get(fileId) as
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
+  const file = db.prepare('SELECT id, status, original_name FROM uploaded_files WHERE id = ? AND (user_id = ? OR ? = 1)').get(fileId, userId, isSuperAdmin ? 1 : 0) as
     | { id: number; status: string; original_name: string }
     | undefined;
 
@@ -188,7 +198,7 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
     const findCompanyStmt = db.prepare(`
       SELECT id, name, website, description, address, has_direct_contact
       FROM companies
-      WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))
+      WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND user_id = ?
       LIMIT 1
     `);
 
@@ -200,22 +210,24 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
         has_direct_contact = CASE WHEN ? = 1 THEN 1 ELSE has_direct_contact END,
         source_file_id = COALESCE(source_file_id, ?),
         updated_at = datetime('now')
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `);
 
     const insertCompanyStmt = db.prepare(`
-      INSERT INTO companies (name, website, description, address, source_file_id, has_direct_contact)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO companies (name, website, description, address, source_file_id, has_direct_contact, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
     const findContactStmt = db.prepare(`
       SELECT id, person_name, job_title, phone_mobile, phone_landline, whatsapp_number, address, notes
       FROM contacts 
-      WHERE (email IS NOT NULL AND email != '' AND LOWER(TRIM(email)) = LOWER(TRIM(?)))
-         OR (phone_mobile IS NOT NULL AND phone_mobile != '' AND phone_mobile = ?)
-         OR (whatsapp_number IS NOT NULL AND whatsapp_number != '' AND whatsapp_number = ?)
-         OR (company_id = ? AND person_name IS NOT NULL AND person_name != '' AND LOWER(TRIM(person_name)) = LOWER(TRIM(?)))
-         OR (company_id = ? AND (email IS NULL OR email = '') AND (phone_mobile IS NULL OR phone_mobile = '') AND (whatsapp_number IS NULL OR whatsapp_number = ''))
+      WHERE user_id = ? AND (
+        (email IS NOT NULL AND email != '' AND LOWER(TRIM(email)) = LOWER(TRIM(?)))
+        OR (phone_mobile IS NOT NULL AND phone_mobile != '' AND phone_mobile = ?)
+        OR (whatsapp_number IS NOT NULL AND whatsapp_number != '' AND whatsapp_number = ?)
+        OR (company_id = ? AND person_name IS NOT NULL AND person_name != '' AND LOWER(TRIM(person_name)) = LOWER(TRIM(?)))
+        OR (company_id = ? AND (email IS NULL OR email = '') AND (phone_mobile IS NULL OR phone_mobile = '') AND (whatsapp_number IS NULL OR whatsapp_number = ''))
+      )
       LIMIT 1
     `);
 
@@ -229,15 +241,15 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
         address = COALESCE(NULLIF(address, ''), ?),
         notes = COALESCE(NULLIF(notes, ''), ?),
         updated_at = datetime('now')
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `);
 
     const insertContactStmt = db.prepare(`
-      INSERT INTO contacts (
+      INSERT OR IGNORE INTO contacts (
         company_id, person_name, job_title, email, phone_mobile, phone_landline,
-        whatsapp_number, address, is_valid_email, is_valid_whatsapp, opted_out, notes
+        whatsapp_number, address, is_valid_email, is_valid_whatsapp, opted_out, notes, user_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
     `);
 
     const findLinkStmt = db.prepare(`
@@ -249,34 +261,52 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
       VALUES (?, ?, ?)
     `);
 
+    const companyCache = new Map<string, number>();
+
     for (const company of companies) {
       if (company.isExcluded) continue;
       const cleanCompName = company.name ? String(company.name).trim() : '';
       if (!cleanCompName) continue;
+      const compKey = cleanCompName.toLowerCase();
 
-      const existingCompany = findCompanyStmt.get(cleanCompName) as { id: number } | undefined;
       let companyDbId: number;
-
-      if (existingCompany) {
-        companyDbId = existingCompany.id;
+      if (companyCache.has(compKey)) {
+        companyDbId = companyCache.get(compKey)!;
         updateCompanyStmt.run(
           company.website || null,
           company.description || null,
           company.address || null,
           company.hasDirectContact ? 1 : 0,
           fileId,
-          companyDbId
+          companyDbId,
+          userId
         );
       } else {
-        const compResult = insertCompanyStmt.run(
-          cleanCompName,
-          company.website || null,
-          company.description || null,
-          company.address || null,
-          fileId,
-          company.hasDirectContact ? 1 : 0
-        );
-        companyDbId = Number(compResult.lastInsertRowid);
+        const existingCompany = findCompanyStmt.get(cleanCompName, userId) as { id: number } | undefined;
+        if (existingCompany) {
+          companyDbId = existingCompany.id;
+          updateCompanyStmt.run(
+            company.website || null,
+            company.description || null,
+            company.address || null,
+            company.hasDirectContact ? 1 : 0,
+            fileId,
+            companyDbId,
+            userId
+          );
+        } else {
+          const compResult = insertCompanyStmt.run(
+            cleanCompName,
+            company.website || null,
+            company.description || null,
+            company.address || null,
+            fileId,
+            company.hasDirectContact ? 1 : 0,
+            userId
+          );
+          companyDbId = Number(compResult.lastInsertRowid);
+        }
+        companyCache.set(compKey, companyDbId);
       }
       savedCompaniesCount++;
 
@@ -302,6 +332,7 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
           const cleanName = contact.personName ? String(contact.personName).trim() : null;
 
           const existing = findContactStmt.get(
+            userId,
             cleanEmail || '',
             cleanPhone || '',
             cleanWa || '',
@@ -320,7 +351,8 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
               cleanWa || null,
               contact.address || company.address || null,
               contact.notes || null,
-              existing.id
+              existing.id,
+              userId
             );
           } else {
             insertContactStmt.run(
@@ -334,7 +366,8 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
               contact.address || company.address || null,
               contact.isValidEmail ? 1 : 0,
               contact.isValidWhatsApp ? 1 : 0,
-              contact.notes || null
+              contact.notes || null,
+              userId
             );
           }
           savedContactsCount++;
@@ -346,8 +379,8 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
     db.prepare(`
       UPDATE uploaded_files
       SET status = 'confirmed', parsed_count = ?
-      WHERE id = ?
-    `).run(savedCompaniesCount, fileId);
+      WHERE id = ? AND (user_id = ? OR ? = 1)
+    `).run(savedCompaniesCount, fileId, userId, isSuperAdmin ? 1 : 0);
 
     db.exec('COMMIT;');
 
@@ -356,6 +389,7 @@ router.post('/:id/confirm', requireAuth, (req: AuthRequest, res: Response): void
       action: 'confirm',
       title: `تأكيد واستيراد ملف: "${file.original_name}"`,
       details: { fileId, savedCompaniesCount, savedContactsCount },
+      userId,
     });
 
     res.json({

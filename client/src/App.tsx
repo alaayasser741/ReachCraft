@@ -9,6 +9,7 @@ import { TransitionOverlay } from './components/ui/TransitionOverlay';
 import { Layout } from './components/layout/Layout';
 
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
 import { LandingPage } from './pages/LandingPage';
 import { Dashboard } from './pages/Dashboard';
 import { Upload } from './pages/Upload';
@@ -20,6 +21,9 @@ import { CampaignDetail } from './pages/CampaignDetail';
 import { Logs } from './pages/Logs';
 import { Settings } from './pages/Settings';
 import { Inbox } from './pages/Inbox';
+import { AdminDashboard } from './pages/AdminDashboard';
+import { CookieConsentBanner } from './components/compliance/CookieConsentBanner';
+import { OnboardingWizardModal } from './components/onboarding/OnboardingWizardModal';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,6 +33,11 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const GlobalOnboardingManager: React.FC = () => {
+  const { needsOnboarding } = useAuth();
+  return <OnboardingWizardModal isOpen={needsOnboarding} />;
+};
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -59,13 +68,16 @@ export const App: React.FC = () => {
           <AuthProvider>
             <ToastProvider>
               <TransitionOverlay />
+              <CookieConsentBanner />
+              <GlobalOnboardingManager />
               <BrowserRouter>
                 <Routes>
                   {/* Public Landing Page */}
                   <Route path="/" element={<LandingPage />} />
 
-                  {/* Public Login Route */}
+                  {/* Public Auth Routes */}
                   <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
 
                   {/* Protected Workspace Routes */}
                   <Route
@@ -86,6 +98,7 @@ export const App: React.FC = () => {
                     <Route path="/campaigns/:id" element={<CampaignDetail />} />
                     <Route path="/logs" element={<Logs />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route path="/admin" element={<AdminDashboard />} />
                   </Route>
 
                   {/* Catch-all fallback */}
