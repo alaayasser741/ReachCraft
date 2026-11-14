@@ -9,6 +9,7 @@ import { TransitionOverlay } from './components/ui/TransitionOverlay';
 import { Layout } from './components/layout/Layout';
 
 import { Login } from './pages/Login';
+import { LandingPage } from './pages/LandingPage';
 import { Dashboard } from './pages/Dashboard';
 import { Upload } from './pages/Upload';
 import { ReviewData } from './pages/ReviewData';
@@ -60,29 +61,31 @@ export const App: React.FC = () => {
               <TransitionOverlay />
               <BrowserRouter>
                 <Routes>
+                  {/* Public Landing Page */}
+                  <Route path="/" element={<LandingPage />} />
+
                   {/* Public Login Route */}
                   <Route path="/login" element={<Login />} />
 
                   {/* Protected Workspace Routes */}
                   <Route
-                    path="/"
                     element={
                       <ProtectedRoute>
                         <Layout />
                       </ProtectedRoute>
                     }
                   >
-                    <Route index element={<Dashboard />} />
-                    <Route path="inbox" element={<Inbox />} />
-                    <Route path="upload" element={<Upload />} />
-                    <Route path="review" element={<ReviewData />} />
-                    <Route path="review/:fileId" element={<ReviewData />} />
-                    <Route path="contacts" element={<CompaniesContacts />} />
-                    <Route path="templates" element={<Templates />} />
-                    <Route path="campaigns" element={<Campaigns />} />
-                    <Route path="campaigns/:id" element={<CampaignDetail />} />
-                    <Route path="logs" element={<Logs />} />
-                    <Route path="settings" element={<Settings />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/inbox" element={<Inbox />} />
+                    <Route path="/upload" element={<Upload />} />
+                    <Route path="/review" element={<ReviewData />} />
+                    <Route path="/review/:fileId" element={<ReviewData />} />
+                    <Route path="/contacts" element={<CompaniesContacts />} />
+                    <Route path="/templates" element={<Templates />} />
+                    <Route path="/campaigns" element={<Campaigns />} />
+                    <Route path="/campaigns/:id" element={<CampaignDetail />} />
+                    <Route path="/logs" element={<Logs />} />
+                    <Route path="/settings" element={<Settings />} />
                   </Route>
 
                   {/* Catch-all fallback */}

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /login
+Disallow: /api/
+Disallow: /inbox/
+Disallow: /campaigns/
+Disallow: /contacts/
+Disallow: /settings/
+Disallow: /review/
+
+Sitemap: https://reachcraft.local/sitemap.xml

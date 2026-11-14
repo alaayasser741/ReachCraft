@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -27,7 +27,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const { t, language, toggleLanguage, dir } = useTranslation();
 
   const navItems = [
-    { to: '/', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { to: '/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { to: '/', label: t('nav.landing'), icon: Sparkles },
     { to: '/inbox', label: t('nav.inbox'), icon: Inbox, badge: 'AI' },
     { to: '/upload', label: t('nav.upload'), icon: UploadCloud },
     { to: '/review', label: t('nav.review'), icon: FileCheck2 },
@@ -45,9 +46,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
       } border-slate-200/80 dark:border-slate-800 flex flex-col h-full shrink-0`}
     >
       {/* Brand Header */}
-      <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-brand-500 flex items-center justify-center text-white shadow-md shadow-brand-500/25 shrink-0">
-          <Sparkles className="w-5 h-5" />
+      <Link
+        to="/dashboard"
+        onClick={() => onCloseMobile?.()}
+        className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3 hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors"
+      >
+        <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 p-1 flex items-center justify-center border border-slate-200/80 dark:border-slate-700/80 shadow-xs shrink-0">
+          <img src="/logo.png" alt="ReachCraft" className="w-full h-full object-contain" />
         </div>
         <div className="truncate">
           <h1 className="font-extrabold text-base tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -58,7 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
           </h1>
           <p className="text-xs text-slate-500 truncate">Outreach Studio</p>
         </div>
-      </div>
+      </Link>
 
       {/* Nav Links */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
@@ -68,7 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
             <NavLink
               key={item.to}
               to={item.to}
-              onClick={onCloseMobile}
+              onClick={() => onCloseMobile?.()}
               className={({ isActive }) =>
                 `relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors select-none ${
                   isActive
@@ -81,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
                 <>
                   {isActive && (
                     <motion.div
-                      layoutId="activeSidebarPill"
+                      layoutId={onCloseMobile ? 'activeMobileSidebarPill' : 'activeDesktopSidebarPill'}
                       transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                       className="absolute inset-0 bg-brand-50 dark:bg-brand-950/60 rounded-xl -z-10 border border-brand-200/60 dark:border-brand-800/60 shadow-xs"
                     />
@@ -143,7 +148,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
             <p className="text-[11px] text-slate-500">{t('common.admin')}</p>
           </div>
           <button
-            onClick={() => logout()}
+            onClick={() => {
+              onCloseMobile?.();
+              logout();
+            }}
             title={t('nav.logout')}
             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
           >

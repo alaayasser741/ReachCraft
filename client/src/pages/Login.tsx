@@ -24,7 +24,7 @@ export const Login: React.FC = () => {
 
     try {
       await login(email, password);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || t('auth.loginFailed'));
     } finally {
@@ -68,11 +68,11 @@ export const Login: React.FC = () => {
       <div className="w-full max-w-md">
         {/* Brand Logo & Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-brand-500 items-center justify-center text-white shadow-xl shadow-brand-500/25 mb-4 animate-bounce-subtle">
-            <Sparkles className="w-7 h-7" />
+          <div className="inline-flex w-16 h-16 rounded-3xl bg-white dark:bg-slate-900 p-2 items-center justify-center border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-brand-500/10 mb-4 animate-bounce-subtle">
+            <img src="/logo.png" alt="ReachCraft" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            {t('auth.welcome')}
+            ReachCraft
           </h1>
           <p className="text-sm text-slate-500 mt-2">{t('auth.subtitle')}</p>
         </div>
