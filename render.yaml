@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: reachcraft
+    env: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DATABASE_PATH
+        value: ./data/outreach.db
+      - key: ADMIN_EMAIL
+        value: alaayasser2018@gmail.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: SYSTEM_SMTP_USER
+        value: verify.reachcraft@gmail.com
+      - key: SYSTEM_SMTP_PASS
+        sync: false

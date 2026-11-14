@@ -82,7 +82,7 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
       if (key === 'smtp_pass') {
         const sanitizedVal = String(val).replace(/\s+/g, '');
         // Guard against browser autofilling the admin panel password into the SMTP password field
-        if (sanitizedVal === '' || sanitizedVal === env.ADMIN_PASSWORD || sanitizedVal === 'adminStrongPass2026!') {
+        if (sanitizedVal === '' || sanitizedVal === env.ADMIN_PASSWORD) {
           return;
         }
         upsertStmt.run(key, sanitizedVal);
@@ -107,7 +107,7 @@ router.post('/test-smtp', requireAuth, async (req: AuthRequest, res: Response): 
   const { host, port, secure, user, pass } = req.body || {};
 
   const cleanPass = pass ? String(pass).replace(/\s+/g, '') : '';
-  const isAutofillAdminPass = cleanPass === env.ADMIN_PASSWORD || cleanPass === 'adminStrongPass2026!';
+  const isAutofillAdminPass = cleanPass === env.ADMIN_PASSWORD;
 
   if (user && cleanPass && !isAutofillAdminPass) {
     provider = new NodemailerProvider({

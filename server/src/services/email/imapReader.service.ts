@@ -5,6 +5,7 @@ import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { geminiService } from '../ai/gemini.service.js';
 import { getEmailProvider } from './providerFactory.js';
+import { decryptSecret } from '../encryption.service.js';
 
 export interface SyncResult {
   syncedCount: number;
@@ -13,9 +14,30 @@ export interface SyncResult {
 }
 
 export class ImapReaderService {
-  private getCredentials() {
+  private getCredentials(userId?: number) {
     try {
       const db = getDatabase();
+
+      if (userId) {
+        const userIntegration = db.prepare(`
+          SELECT smtp_user, smtp_pass_encrypted, smtp_pass_iv, smtp_pass_tag
+          FROM user_integrations 
+          WHERE user_id = ?
+        `).get(userId) as any;
+
+        if (userIntegration && userIntegration.smtp_pass_encrypted && userIntegration.smtp_user) {
+          const decryptedPass = decryptSecret(
+            userIntegration.smtp_pass_encrypted,
+            userIntegration.smtp_pass_iv,
+            userIntegration.smtp_pass_tag
+          );
+          return {
+            user: userIntegration.smtp_user,
+            pass: decryptedPass,
+          };
+        }
+      }
+
       const rows = db.prepare("SELECT key, value FROM app_settings WHERE key IN ('smtp_user', 'smtp_pass')").all() as Array<{
         key: string;
         value: string;
@@ -35,8 +57,8 @@ export class ImapReaderService {
     }
   }
 
-  public async syncInbox(limit = 25): Promise<SyncResult> {
-    const creds = this.getCredentials();
+  public async syncInbox(limit = 25, userId: number = 1): Promise<SyncResult> {
+    const creds = this.getCredentials(userId);
     if (!creds.user || !creds.pass) {
       throw new Error('SMTP/IMAP user and pass are not configured');
     }
@@ -79,15 +101,15 @@ export class ImapReaderService {
 
       logger.info({ range, totalInInbox }, 'Fetching messages from IMAP');
 
-      const checkStmt = db.prepare('SELECT id, is_read FROM inbox_messages WHERE message_uid = ?');
+      const checkStmt = db.prepare('SELECT id, is_read FROM inbox_messages WHERE message_uid = ? AND user_id = ?');
       const insertStmt = db.prepare(`
         INSERT INTO inbox_messages (
           message_uid, from_name, from_email, subject, snippet,
           body_html, body_text, date, is_read, ai_category,
-          ai_summary, ai_priority, ai_suggested_reply
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ai_summary, ai_priority, ai_suggested_reply, user_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      const updateReadStmt = db.prepare('UPDATE inbox_messages SET is_read = ? WHERE id = ?');
+      const updateReadStmt = db.prepare('UPDATE inbox_messages SET is_read = ? WHERE id = ? AND user_id = ?');
 
       // Fetch messages with raw source for parsing
       const messagesGenerator = client.fetch(range, {
@@ -99,13 +121,13 @@ export class ImapReaderService {
 
       for await (const msg of messagesGenerator) {
         const uidStr = String(msg.uid);
-        const existing = checkStmt.get(uidStr) as { id: number; is_read: number } | undefined;
+        const existing = checkStmt.get(uidStr, userId) as { id: number; is_read: number } | undefined;
         const isReadFlag = msg.flags?.has('\\Seen') ? 1 : 0;
 
         if (existing) {
           if (isReadFlag === 1 && existing.is_read === 0) {
             // Marked as read on Gmail web/app -> reflect in ReachCraft
-            updateReadStmt.run(1, existing.id);
+            updateReadStmt.run(1, existing.id, userId);
           } else if (existing.is_read === 1 && isReadFlag === 0) {
             // User opened/read this email in ReachCraft -> preserve read state and sync \Seen to Gmail
             try {
@@ -200,7 +222,8 @@ export class ImapReaderService {
             aiCategory,
             aiSummary,
             aiPriority,
-            aiSuggestedReply
+            aiSuggestedReply,
+            userId
           );
 
           newEmailsCount++;
@@ -225,9 +248,10 @@ export class ImapReaderService {
     replyText: string;
     recipientEmail: string;
     subject: string;
+    userId?: number;
   }): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-      const emailProvider = getEmailProvider();
+      const emailProvider = getEmailProvider(params.userId);
       const replySubject = params.subject.startsWith('Re:') ? params.subject : `Re: ${params.subject}`;
 
       // Format text with paragraph breaks and signature

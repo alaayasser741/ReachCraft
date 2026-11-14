@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, Mail, Lock, AlertCircle, ArrowRight, ShieldCheck, Globe, Moon, Sun } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useTranslation } from '../i18n/LanguageContext';
 import { useTheme } from '../theme/ThemeContext';
 import { Button } from '../components/ui/Button';
+import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
 
 export const Login: React.FC = () => {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const { t, language, toggleLanguage, dir } = useTranslation();
   const { theme, toggleTheme } = useTheme();
 
-  const [email, setEmail] = useState('admin@outreach.local');
-  const [password, setPassword] = useState('adminStrongPass2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,17 +25,30 @@ export const Login: React.FC = () => {
 
     try {
       await login(email, password);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message || t('auth.loginFailed'));
+      const isArabic = dir === 'rtl' || language === 'ar';
+      if (err.status === 401 || err.message?.includes('Invalid') || err.message?.includes('غير صحيحة')) {
+        setError(isArabic ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة، يرجى التأكد والمحاولة مجدداً.' : 'Invalid email or password. Please check your credentials and try again.');
+      } else {
+        setError(err.message || t('auth.loginFailed'));
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const fillDefaultCredentials = () => {
-    setEmail('admin@outreach.local');
-    setPassword('adminStrongPass2026!');
+  const handleGoogleSuccess = async (credential: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await loginWithGoogle(credential);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Google login failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -68,11 +82,11 @@ export const Login: React.FC = () => {
       <div className="w-full max-w-md">
         {/* Brand Logo & Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-brand-500 items-center justify-center text-white shadow-xl shadow-brand-500/25 mb-4 animate-bounce-subtle">
-            <Sparkles className="w-7 h-7" />
+          <div className="inline-flex w-16 h-16 rounded-3xl bg-white dark:bg-slate-900 p-2 items-center justify-center border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-brand-500/10 mb-4 animate-bounce-subtle">
+            <img src="/logo.png" alt="ReachCraft" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            {t('auth.welcome')}
+            ReachCraft
           </h1>
           <p className="text-sm text-slate-500 mt-2">{t('auth.subtitle')}</p>
         </div>
@@ -86,10 +100,30 @@ export const Login: React.FC = () => {
             </div>
           )}
 
+          {/* Google Sign-in */}
+          <div className="mb-4">
+            <GoogleSignInButton
+              onSuccess={handleGoogleSuccess}
+              onError={(err) => setError(err.message || 'Google Sign-in failed')}
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white dark:bg-slate-900 px-3 text-slate-400">
+                {dir === 'rtl' ? 'أو الدخول بالبريد' : 'Or sign in with email'}
+              </span>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                {t('auth.adminEmail')}
+                {dir === 'rtl' ? 'البريد الإلكتروني' : 'Email Address'}
               </label>
               <div className="relative">
                 <Mail
@@ -102,7 +136,7 @@ export const Login: React.FC = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@outreach.local"
+                  placeholder="name@company.com"
                   className={`w-full ${
                     dir === 'rtl' ? 'pr-10 pl-4' : 'pl-10 pr-4'
                   } py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all font-mono`}
@@ -112,7 +146,7 @@ export const Login: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                {t('auth.password')}
+                {dir === 'rtl' ? 'كلمة المرور' : 'Password'}
               </label>
               <div className="relative">
                 <Lock
@@ -144,16 +178,15 @@ export const Login: React.FC = () => {
             </Button>
           </form>
 
-          {/* Quick Demo Credentials Helper */}
-          <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center">
-            <button
-              type="button"
-              onClick={fillDefaultCredentials}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 transition-colors"
+          {/* Create Account Link */}
+          <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 text-center text-xs text-slate-500">
+            <span>{dir === 'rtl' ? 'ليس لديك حساب؟' : "Don't have an account?"} </span>
+            <Link
+              to="/register"
+              className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
             >
-              <ShieldCheck className="w-4 h-4" />
-              <span>{t('auth.fillDemo')}</span>
-            </button>
+              {dir === 'rtl' ? 'أنشئ حساباً مجانياً الآن' : 'Sign up free now'}
+            </Link>
           </div>
         </div>
 

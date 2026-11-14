@@ -34,11 +34,13 @@ import { Modal } from '../components/ui/Modal';
 import { Pagination } from '../components/ui/Pagination';
 import { useToast } from '../components/ui/Toast';
 import { useTranslation } from '../i18n/LanguageContext';
+import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { MessageLog, ActivityLog } from '../types';
 
 export const Logs: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isSuperAdmin } = useAuth();
   const { error: toastError } = useToast();
   const { t, dir } = useTranslation();
 
@@ -48,6 +50,7 @@ export const Logs: React.FC = () => {
   const urlChannel = searchParams.get('channel') || 'all';
   const urlStatus = searchParams.get('status') || 'all';
   const urlSearch = searchParams.get('search') || '';
+  const urlAllUsers = searchParams.get('allUsers') === 'true';
   const pageParam = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const pageSizeParam = Math.max(10, parseInt(searchParams.get('pageSize') || '25', 10));
 
@@ -97,7 +100,7 @@ export const Logs: React.FC = () => {
 
   const loadStats = async () => {
     try {
-      const statsRes = await api.getLogStats();
+      const statsRes = await api.getLogStats(isSuperAdmin && urlAllUsers);
       if (statsRes.success) {
         setStats(statsRes.stats);
       }
@@ -116,6 +119,7 @@ export const Logs: React.FC = () => {
           search: debouncedSearch || undefined,
           page: pageParam,
           limit: pageSizeParam,
+          allUsers: isSuperAdmin && urlAllUsers ? true : undefined,
         });
         if (res.success) {
           setActivities(res.activities);
@@ -129,6 +133,7 @@ export const Logs: React.FC = () => {
           search: debouncedSearch || undefined,
           page: pageParam,
           limit: pageSizeParam,
+          allUsers: isSuperAdmin && urlAllUsers ? true : undefined,
         });
         if (res.success) {
           setMessageLogs(res.logs);
@@ -145,11 +150,11 @@ export const Logs: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [activeTab, urlCategory, urlChannel, urlStatus, debouncedSearch, pageParam, pageSizeParam]);
+  }, [activeTab, urlCategory, urlChannel, urlStatus, urlAllUsers, debouncedSearch, pageParam, pageSizeParam]);
 
   useEffect(() => {
     loadStats();
-  }, []);
+  }, [urlAllUsers]);
 
   const handleTabChange = (tab: 'activity' | 'messages') => {
     setSearchParams(
@@ -333,41 +338,73 @@ export const Logs: React.FC = () => {
         </p>
       </div>
 
-      {/* Primary Tab Switcher */}
-      <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl w-fit border border-slate-200/60 dark:border-slate-800 shadow-xs">
-        <button
-          onClick={() => handleTabChange('activity')}
-          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'activity'
-              ? 'bg-white dark:bg-slate-900 text-brand-700 dark:text-brand-300 shadow-sm'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Activity className="w-4 h-4 text-brand-600" />
-          <span>{t('logs.tabSystemActivity')}</span>
-          {stats?.totalActivities !== undefined && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-extrabold">
-              {stats.totalActivities}
-            </span>
-          )}
-        </button>
+      {/* Primary Tab Switcher & Admin Scope */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl w-fit border border-slate-200/60 dark:border-slate-800 shadow-xs">
+          <button
+            onClick={() => handleTabChange('activity')}
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'activity'
+                ? 'bg-white dark:bg-slate-900 text-brand-700 dark:text-brand-300 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Activity className="w-4 h-4 text-brand-600" />
+            <span>{t('logs.tabSystemActivity')}</span>
+            {stats?.totalActivities !== undefined && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 font-extrabold">
+                {stats.totalActivities}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => handleTabChange('messages')}
-          className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'messages'
-              ? 'bg-white dark:bg-slate-900 text-brand-700 dark:text-brand-300 shadow-sm'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-          }`}
-        >
-          <Mail className="w-4 h-4 text-emerald-600" />
-          <span>{t('logs.tabMessageLogs')}</span>
-          {stats?.totalLogs !== undefined && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-extrabold">
-              {stats.totalLogs}
+          <button
+            onClick={() => handleTabChange('messages')}
+            className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'messages'
+                ? 'bg-white dark:bg-slate-900 text-brand-700 dark:text-brand-300 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Mail className="w-4 h-4 text-emerald-600" />
+            <span>{t('logs.tabMessageLogs')}</span>
+            {stats?.totalLogs !== undefined && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-extrabold">
+                {stats.totalLogs}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Super Admin Global View Switch */}
+        {isSuperAdmin && (
+          <button
+            onClick={() => {
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                if (urlAllUsers) {
+                  next.delete('allUsers');
+                } else {
+                  next.set('allUsers', 'true');
+                }
+                next.set('page', '1');
+                return next;
+              });
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all border shadow-xs ${
+              urlAllUsers
+                ? 'bg-amber-500 text-white border-amber-600 shadow-amber-500/20'
+                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-amber-400'
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>
+              {dir === 'rtl'
+                ? (urlAllUsers ? 'عرض نشاط كافة مستخدمي المنصة (مفعل)' : 'عرض نشاط كافة المستخدمين')
+                : (urlAllUsers ? 'Viewing All Users (Active)' : 'Show All Users Activity')}
             </span>
-          )}
-        </button>
+          </button>
+        )}
       </div>
 
       {/* Mini Stats Ribbon */}
@@ -609,8 +646,18 @@ export const Logs: React.FC = () => {
                   </tr>
                 ) : activities.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400 italic">
-                      {t('logs.noActivities')}
+                    <td colSpan={6} className="py-14 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                        <Activity className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-1" />
+                        <span className="font-bold text-sm text-slate-700 dark:text-slate-300">
+                          {dir === 'rtl' ? 'لا توجد حركات مسجلة حالياً' : t('logs.noActivities')}
+                        </span>
+                        <span className="text-xs text-slate-500 leading-relaxed">
+                          {dir === 'rtl'
+                            ? 'يتم تتبع كافة العمليات في حسابك تلقائياً (تسجيل الدخول، استيراد الملفات، تعديل جهات الاتصال وإطلاق الحملات).'
+                            : 'All operations in your account are automatically audited here (logins, file imports, contacts edits, and campaign dispatches).'}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 ) : (
@@ -709,8 +756,18 @@ export const Logs: React.FC = () => {
                   </tr>
                 ) : messageLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400 italic">
-                      No outreach message logs recorded.
+                    <td colSpan={7} className="py-14 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                        <Mail className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-1" />
+                        <span className="font-bold text-sm text-slate-700 dark:text-slate-300">
+                          {dir === 'rtl' ? 'لا توجد سجلات إرسال حتى الآن' : 'No outreach message logs recorded'}
+                        </span>
+                        <span className="text-xs text-slate-500 leading-relaxed">
+                          {dir === 'rtl'
+                            ? 'عند إطلاق حملات البريد الإلكتروني أو رسائل WhatsApp ستظهر تفاصيل وحالة كل رسالة هنا لحظة بلحظة.'
+                            : 'When outreach campaigns are dispatched, delivery status and responses for each message will appear here in real time.'}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 ) : (

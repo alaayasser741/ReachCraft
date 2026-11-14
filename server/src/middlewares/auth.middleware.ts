@@ -3,11 +3,19 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { getDatabase } from '../db/connection.js';
 
+export interface AuthenticatedUser {
+  id: number;
+  email: string;
+  name?: string;
+  role: 'super_admin' | 'user';
+  plan: string;
+  is_verified: number;
+  onboarding_completed: number;
+  status: string;
+}
+
 export interface AuthRequest extends Request {
-  user?: {
-    id: number;
-    email: string;
-  };
+  user?: AuthenticatedUser;
 }
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction): void {
@@ -27,12 +35,19 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET) as { id: number; email: string };
     const db = getDatabase();
-    const user = db.prepare('SELECT id, email FROM users WHERE id = ?').get(decoded.id) as
-      | { id: number; email: string }
-      | undefined;
+    const user = db.prepare(`
+      SELECT id, email, name, role, plan, is_verified, onboarding_completed, status 
+      FROM users 
+      WHERE id = ?
+    `).get(decoded.id) as AuthenticatedUser | undefined;
 
     if (!user) {
       res.status(401).json({ success: false, error: 'Unauthorized: User not found' });
+      return;
+    }
+
+    if (user.status === 'suspended') {
+      res.status(403).json({ success: false, error: 'تم تجميد هذا الحساب لمخالفة سياسة الاستخدام العادل. يرجى التواصل مع الدعم.' });
       return;
     }
 
@@ -41,4 +56,14 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   } catch (_err) {
     res.status(401).json({ success: false, error: 'Unauthorized: Invalid or expired session' });
   }
+}
+
+export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
+  requireAuth(req, res, () => {
+    if (req.user?.role !== 'super_admin') {
+      res.status(403).json({ success: false, error: 'Forbidden: Super Admin access required' });
+      return;
+    }
+    next();
+  });
 }

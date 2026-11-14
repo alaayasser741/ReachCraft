@@ -77,8 +77,8 @@ export const Settings: React.FC = () => {
       // Only include password if user explicitly wanted to change it
       if (isEditingPassword && newPassword.trim()) {
         const clean = newPassword.replace(/\s+/g, '');
-        if (clean === 'adminStrongPass2026!') {
-          toastError(dir === 'rtl' ? 'تنبيه: لقد أدخلت كلمة مرور لوحة التحكم بدلاً من App Password' : 'Error: You entered the admin password instead of the Gmail App Password');
+        if (clean === 'alaa7415@@' || (clean.length < 16 && clean.includes('@'))) {
+          toastError(dir === 'rtl' ? 'تنبيه: يجب إدخال Gmail App Password المكون من 16 حرفاً وليس كلمة مرور الحساب' : 'Error: Please enter the 16-character Gmail App Password');
           setIsSaving(false);
           return;
         }
@@ -105,7 +105,7 @@ export const Settings: React.FC = () => {
       let passToTest: string | undefined = undefined;
       if (isEditingPassword && newPassword.trim()) {
         const clean = newPassword.replace(/\s+/g, '');
-        if (clean !== 'adminStrongPass2026!') {
+        if (clean !== 'alaa7415@@') {
           passToTest = clean;
         }
       }

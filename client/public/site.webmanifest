@@ -1,0 +1,22 @@
+{
+  "name": "ReachCraft - Smart Contact Outreach & Enrichment",
+  "short_name": "ReachCraft",
+  "description": "B2B Exhibition Lead Extraction & Cold Outreach Automation Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#059669",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "345x331",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48 32x32 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

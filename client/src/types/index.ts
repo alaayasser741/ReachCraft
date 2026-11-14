@@ -1,6 +1,12 @@
 export interface User {
   id: number;
   email: string;
+  name?: string;
+  role?: 'super_admin' | 'user';
+  plan?: 'beta_free' | 'pro' | 'unlimited';
+  is_verified?: number;
+  onboarding_completed?: number;
+  status?: string;
 }
 
 export interface ParsedLink {
@@ -81,6 +87,8 @@ export interface Contact {
   is_valid_email: number;
   is_valid_whatsapp: number;
   opted_out: number;
+  is_verified_pool?: number;
+  user_id?: number;
   notes: string | null;
   created_at: string;
 }

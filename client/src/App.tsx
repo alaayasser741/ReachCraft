@@ -9,6 +9,8 @@ import { TransitionOverlay } from './components/ui/TransitionOverlay';
 import { Layout } from './components/layout/Layout';
 
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
+import { LandingPage } from './pages/LandingPage';
 import { Dashboard } from './pages/Dashboard';
 import { Upload } from './pages/Upload';
 import { ReviewData } from './pages/ReviewData';
@@ -19,6 +21,9 @@ import { CampaignDetail } from './pages/CampaignDetail';
 import { Logs } from './pages/Logs';
 import { Settings } from './pages/Settings';
 import { Inbox } from './pages/Inbox';
+import { AdminDashboard } from './pages/AdminDashboard';
+import { CookieConsentBanner } from './components/compliance/CookieConsentBanner';
+import { OnboardingWizardModal } from './components/onboarding/OnboardingWizardModal';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +33,11 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+const GlobalOnboardingManager: React.FC = () => {
+  const { needsOnboarding } = useAuth();
+  return <OnboardingWizardModal isOpen={needsOnboarding} />;
+};
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
@@ -58,31 +68,37 @@ export const App: React.FC = () => {
           <AuthProvider>
             <ToastProvider>
               <TransitionOverlay />
+              <CookieConsentBanner />
+              <GlobalOnboardingManager />
               <BrowserRouter>
                 <Routes>
-                  {/* Public Login Route */}
+                  {/* Public Landing Page */}
+                  <Route path="/" element={<LandingPage />} />
+
+                  {/* Public Auth Routes */}
                   <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
 
                   {/* Protected Workspace Routes */}
                   <Route
-                    path="/"
                     element={
                       <ProtectedRoute>
                         <Layout />
                       </ProtectedRoute>
                     }
                   >
-                    <Route index element={<Dashboard />} />
-                    <Route path="inbox" element={<Inbox />} />
-                    <Route path="upload" element={<Upload />} />
-                    <Route path="review" element={<ReviewData />} />
-                    <Route path="review/:fileId" element={<ReviewData />} />
-                    <Route path="contacts" element={<CompaniesContacts />} />
-                    <Route path="templates" element={<Templates />} />
-                    <Route path="campaigns" element={<Campaigns />} />
-                    <Route path="campaigns/:id" element={<CampaignDetail />} />
-                    <Route path="logs" element={<Logs />} />
-                    <Route path="settings" element={<Settings />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/inbox" element={<Inbox />} />
+                    <Route path="/upload" element={<Upload />} />
+                    <Route path="/review" element={<ReviewData />} />
+                    <Route path="/review/:fileId" element={<ReviewData />} />
+                    <Route path="/contacts" element={<CompaniesContacts />} />
+                    <Route path="/templates" element={<Templates />} />
+                    <Route path="/campaigns" element={<Campaigns />} />
+                    <Route path="/campaigns/:id" element={<CampaignDetail />} />
+                    <Route path="/logs" element={<Logs />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/admin" element={<AdminDashboard />} />
                   </Route>
 
                   {/* Catch-all fallback */}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Building2,
   Users2,
@@ -11,7 +11,9 @@ import {
   Edit2,
   Trash2,
   ShieldAlert,
+  ShieldCheck,
   X,
+  Send,
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -20,15 +22,18 @@ import { Drawer } from '../components/ui/Drawer';
 import { Pagination } from '../components/ui/Pagination';
 import { useToast } from '../components/ui/Toast';
 import { useTranslation } from '../i18n/LanguageContext';
+import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { Company, Contact } from '../types';
 
 export const CompaniesContacts: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { isSuperAdmin } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
   const { t, dir } = useTranslation();
 
-  const activeTab = (searchParams.get('tab') as 'contacts' | 'companies') || 'contacts';
+  const activeTab = (searchParams.get('tab') as 'contacts' | 'companies' | 'verified_pool') || 'contacts';
   const pageParam = Math.max(1, Number(searchParams.get('page')) || 1);
   const pageSizeParam = [10, 25, 50, 100].includes(Number(searchParams.get('pageSize')))
     ? Number(searchParams.get('pageSize'))
@@ -52,6 +57,7 @@ export const CompaniesContacts: React.FC = () => {
     validWhatsApp: 0,
     optedOut: 0,
     totalCompanies: 0,
+    poolCount: 0,
   });
 
   // Selected for drawer
@@ -91,7 +97,10 @@ export const CompaniesContacts: React.FC = () => {
     try {
       const res = await api.getContactStats();
       if (res.success && res.stats) {
-        setStats(res.stats);
+        setStats({
+          ...res.stats,
+          poolCount: res.stats.poolCount || 0,
+        });
       }
     } catch (err) {
       console.error('Failed to load stats:', err);
@@ -101,8 +110,9 @@ export const CompaniesContacts: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      if (activeTab === 'contacts') {
+      if (activeTab === 'contacts' || activeTab === 'verified_pool') {
         const res = await api.getContacts({
+          pool: activeTab === 'verified_pool',
           search: debouncedSearch || undefined,
           hasEmail: filterParam === 'email' ? true : undefined,
           hasWhatsApp: filterParam === 'whatsapp' ? true : undefined,
@@ -140,7 +150,7 @@ export const CompaniesContacts: React.FC = () => {
     loadStats();
   }, []);
 
-  const handleTabChange = (newTab: 'contacts' | 'companies') => {
+  const handleTabChange = (newTab: 'contacts' | 'companies' | 'verified_pool') => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('tab', newTab);
@@ -308,6 +318,24 @@ export const CompaniesContacts: React.FC = () => {
             </div>
           </div>
         </Card>
+
+        {/* Verified Leads Pool */}
+        <Card
+          onClick={() => handleTabChange('verified_pool' as any)}
+          className="p-3.5 flex items-center gap-3 border-purple-200/80 dark:border-purple-800/80 bg-purple-50/50 dark:bg-purple-950/30 shadow-xs col-span-2 sm:col-span-1 cursor-pointer hover:border-purple-400 transition-all"
+        >
+          <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold text-purple-600 dark:text-purple-400 truncate">
+              {dir === 'rtl' ? 'قاعدة البيانات الموثقة' : 'Verified Pool'}
+            </div>
+            <div className="text-xl font-extrabold text-purple-700 dark:text-purple-300 mt-0.5">
+              {stats.poolCount || 0}
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* Tabs & Search Filter Card */}
@@ -337,6 +365,22 @@ export const CompaniesContacts: React.FC = () => {
               <Building2 className="w-4 h-4" />
               <span>{t('contacts.companiesView')}</span>
             </button>
+            <button
+              onClick={() => handleTabChange('verified_pool' as any)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'verified_pool'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>{dir === 'rtl' ? 'قاعدة جهات الاتصال الموثقة' : 'Verified B2B Leads'}</span>
+              {stats.poolCount > 0 && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 text-white font-extrabold">
+                  {stats.poolCount}
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Debounced Search Box synced to URL */}
@@ -351,9 +395,11 @@ export const CompaniesContacts: React.FC = () => {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder={
-                activeTab === 'contacts'
-                  ? t('contacts.searchPlaceholderContacts')
-                  : t('contacts.searchPlaceholderCompanies')
+                activeTab === 'companies'
+                  ? t('contacts.searchPlaceholderCompanies')
+                  : activeTab === 'verified_pool'
+                  ? (dir === 'rtl' ? 'بحث في جهات الاتصال الموثقة بالاسم، البريد، الشركة...' : 'Search verified leads by name, email, company...')
+                  : t('contacts.searchPlaceholderContacts')
               }
               className={`w-full ${
                 dir === 'rtl' ? 'pr-9 pl-9' : 'pl-9 pr-9'
@@ -373,8 +419,8 @@ export const CompaniesContacts: React.FC = () => {
           </div>
         </div>
 
-        {/* Contacts Filter Pills (Visible in contacts tab) */}
-        {activeTab === 'contacts' && (
+        {/* Contacts Filter Pills (Visible in contacts tab and verified pool) */}
+        {(activeTab === 'contacts' || activeTab === 'verified_pool') && (
           <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
             <span className="text-slate-400 font-semibold uppercase text-[11px] mr-1">
               {t('common.status')}:
@@ -426,43 +472,72 @@ export const CompaniesContacts: React.FC = () => {
         )}
       </Card>
 
+      {/* Verified Pool Info Banner */}
+      {activeTab === 'verified_pool' && (
+        <div className="flex items-center gap-3 p-4 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/70 rounded-2xl text-purple-950 dark:text-purple-200 text-xs shadow-xs animate-fade-in">
+          <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="flex-1 leading-relaxed">
+            <span className="font-extrabold text-sm block mb-0.5">
+              {dir === 'rtl' ? 'قاعدة جهات الاتصال الموثقة (Verified B2B Pool)' : 'Verified B2B Leads Pool'}
+            </span>
+            <span className="text-slate-600 dark:text-slate-400">
+              {dir === 'rtl'
+                ? 'جهات اتصال B2B رسمية ومتحقق من صحة بريدها الإلكتروني وأرقامها، أضافتها إدارة ReachCraft لتمكينك من إطلاق حملاتك المباشرة بدون الحاجة لرفع قوائم خارجية.'
+                : 'Pre-verified B2B leads validated by ReachCraft admins with checked emails and phones. You can launch outreach directly without uploading external lists.'}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Table */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-xs text-slate-400 mt-2">{t('common.loading')}</p>
         </div>
-      ) : activeTab === 'contacts' ? (
-        /* Contacts Table */
+      ) : (activeTab === 'contacts' || activeTab === 'verified_pool') ? (
+        /* Contacts Table (Both Personal and Verified Pool) */
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left rtl:text-right text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 text-slate-500 font-semibold uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-4">{t('contacts.colPerson')}</th>
                   <th className="py-3 px-4">{t('contacts.colCompany')}</th>
                   <th className="py-3 px-4">{t('contacts.colEmail')}</th>
                   <th className="py-3 px-4">{t('contacts.colPhone')}</th>
-                  <th className="py-3 px-4">{t('contacts.colConsent')}</th>
-                  <th className="py-3 px-4 text-right">{t('common.actions')}</th>
+                  <th className="py-3 px-4">{activeTab === 'verified_pool' ? (dir === 'rtl' ? 'حالة التوثيق' : 'Verification') : t('contacts.colConsent')}</th>
+                  <th className="py-3 px-4 text-right rtl:text-left">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
                 {contacts.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-400 italic">
-                      {t('contacts.noContactsMatch')}
+                      {activeTab === 'verified_pool'
+                        ? (dir === 'rtl' ? 'لا توجد جهات اتصال موثقة مطابقة للبحث' : 'No verified leads found matching your search')
+                        : t('contacts.noContactsMatch')}
                     </td>
                   </tr>
                 ) : (
                   contacts.map((contact) => (
                     <tr key={contact.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
                       <td className="py-3 px-4">
-                        <div className="font-bold text-slate-900 dark:text-white">
-                          {contact.person_name || <span className="text-slate-400 font-normal italic">Unknown</span>}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900 dark:text-white">
+                            {contact.person_name || <span className="text-slate-400 font-normal italic">Unknown</span>}
+                          </span>
+                          {contact.is_verified_pool === 1 && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300">
+                              <ShieldCheck className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                              <span>{dir === 'rtl' ? 'موثق' : 'Verified'}</span>
+                            </span>
+                          )}
                         </div>
                         {contact.job_title && (
-                          <div className="text-[11px] text-slate-400">{contact.job_title}</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">{contact.job_title}</div>
                         )}
                       </td>
                       <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-semibold">
@@ -488,7 +563,11 @@ export const CompaniesContacts: React.FC = () => {
                         )}
                       </td>
                       <td className="py-3 px-4">
-                        {contact.opted_out === 1 ? (
+                        {activeTab === 'verified_pool' ? (
+                          <Badge variant="purple" size="sm" icon={<ShieldCheck className="w-3 h-3 text-purple-600" />}>
+                            {dir === 'rtl' ? 'معتمد وموثق' : 'Verified Lead'}
+                          </Badge>
+                        ) : contact.opted_out === 1 ? (
                           <Badge variant="danger" size="sm">
                             {t('contacts.optedOut')}
                           </Badge>
@@ -498,22 +577,57 @@ export const CompaniesContacts: React.FC = () => {
                           </Badge>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => setSelectedContact(contact)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                            title={t('contacts.editContact')}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteContact(contact.id)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                            title={t('common.delete')}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                      <td className="py-3 px-4 text-right rtl:text-left">
+                        <div className="flex items-center justify-end rtl:justify-start gap-1.5">
+                          {activeTab === 'verified_pool' ? (
+                            <>
+                              <button
+                                onClick={() => {
+                                  navigate(`/campaigns?contactId=${contact.id}`);
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white transition-colors flex items-center gap-1.5 shadow-xs"
+                                title={dir === 'rtl' ? 'إطلاق حملة تواصل مع هذه الجهة' : 'Create campaign for this lead'}
+                              >
+                                <Send className="w-3 h-3" />
+                                <span>{dir === 'rtl' ? 'مراسلة' : 'Reach out'}</span>
+                              </button>
+                              {isSuperAdmin && (
+                                <>
+                                  <button
+                                    onClick={() => setSelectedContact(contact)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    title={t('contacts.editContact')}
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteContact(contact.id)}
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                    title={t('common.delete')}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setSelectedContact(contact)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                title={t('contacts.editContact')}
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteContact(contact.id)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                title={t('common.delete')}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

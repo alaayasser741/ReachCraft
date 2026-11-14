@@ -16,13 +16,14 @@ const templateSchema = z.object({
 // GET /api/templates
 router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
+  const userId = req.user!.id;
   const channel = req.query.channel as string | undefined;
 
-  let query = 'SELECT * FROM templates';
-  const params: any[] = [];
+  let query = 'SELECT * FROM templates WHERE (user_id = ? OR is_default = 1)';
+  const params: any[] = [userId];
 
   if (channel && (channel === 'email' || channel === 'whatsapp')) {
-    query += ' WHERE channel = ?';
+    query += ' AND channel = ?';
     params.push(channel);
   }
 
@@ -34,6 +35,11 @@ router.get('/', requireAuth, (req: AuthRequest, res: Response): void => {
 
 // POST /api/templates/:id/set-default
 router.post('/:id/set-default', requireAuth, (req: AuthRequest, res: Response): void => {
+  if (req.user?.role !== 'super_admin') {
+    res.status(403).json({ success: false, error: 'فقط المسؤول (Super Admin) يملك صلاحية تعيين قوالب افتراضية للمنصة.' });
+    return;
+  }
+
   const db = getDatabase();
   const template = db.prepare('SELECT id, channel FROM templates WHERE id = ?').get(req.params.id) as
     | { id: number; channel: string }
@@ -52,6 +58,7 @@ router.post('/:id/set-default', requireAuth, (req: AuthRequest, res: Response): 
     action: 'update',
     title: `تعيين قالب كافتراضي لقناة (${template.channel})`,
     details: { templateId: template.id, channel: template.channel },
+    userId: req.user!.id,
   });
 
   res.json({ success: true, message: 'Template set as default successfully' });
@@ -60,10 +67,16 @@ router.post('/:id/set-default', requireAuth, (req: AuthRequest, res: Response): 
 // GET /api/templates/:id
 router.get('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
-  const template = db.prepare('SELECT * FROM templates WHERE id = ?').get(req.params.id);
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
+  const template = db.prepare(`
+    SELECT * FROM templates
+    WHERE id = ? AND (user_id = ? OR is_default = 1 OR ? = 1)
+  `).get(req.params.id, userId, isSuperAdmin ? 1 : 0);
 
   if (!template) {
-    res.status(404).json({ success: false, error: 'Template not found' });
+    res.status(404).json({ success: false, error: 'القالب غير موجود أو ليس لديك صلاحية للوصول إليه' });
     return;
   }
 
@@ -89,11 +102,14 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   const db = getDatabase();
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+  const isDefault = isSuperAdmin && (req.body.is_default === 1 || req.body.is_default === true) ? 1 : 0;
 
   const result = db.prepare(`
-    INSERT INTO templates (name, channel, subject, body)
-    VALUES (?, ?, ?, ?)
-  `).run(name, channel, subject || null, body);
+    INSERT INTO templates (name, channel, subject, body, user_id, is_default)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(name, channel, subject || null, body, userId, isDefault);
 
   const templateId = Number(result.lastInsertRowid);
 
@@ -101,7 +117,8 @@ router.post('/', requireAuth, (req: AuthRequest, res: Response): void => {
     category: 'template',
     action: 'create',
     title: `إنشاء قالب جديد: "${name}" (${channel})`,
-    details: { templateId, name, channel, subject },
+    details: { templateId, name, channel, subject, isDefault },
+    userId,
   });
 
   res.status(201).json({
@@ -120,7 +137,20 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   }
 
   const db = getDatabase();
-  const tmpl = db.prepare('SELECT name, channel FROM templates WHERE id = ?').get(req.params.id) as any;
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
+  const tmpl = db.prepare('SELECT id, name, channel, user_id, is_default FROM templates WHERE id = ?').get(req.params.id) as any;
+  if (!tmpl) {
+    res.status(404).json({ success: false, error: 'القالب غير موجود' });
+    return;
+  }
+
+  if (tmpl.user_id !== userId && !isSuperAdmin) {
+    res.status(403).json({ success: false, error: 'لا يمكنك تعديل هذا القالب لأنه قالب افتراضي للنظام أو لا يخص حسابك' });
+    return;
+  }
+
   const updates = parseResult.data;
 
   if (updates.channel === 'whatsapp') {
@@ -140,6 +170,11 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
     }
   });
 
+  if (isSuperAdmin && typeof req.body.is_default !== 'undefined') {
+    fields.push('is_default = ?');
+    params.push(req.body.is_default ? 1 : 0);
+  }
+
   if (fields.length === 0) {
     res.json({ success: true, message: 'No fields to update' });
     return;
@@ -155,6 +190,7 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
     action: 'update',
     title: `تعديل القالب: "${updates.name || tmpl?.name || `#${req.params.id}`}"`,
     details: updates,
+    userId,
   });
 
   res.json({ success: true, message: 'Template updated successfully' });
@@ -163,7 +199,20 @@ router.patch('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
 // DELETE /api/templates/:id
 router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
   const db = getDatabase();
-  const tmpl = db.prepare('SELECT name, channel FROM templates WHERE id = ?').get(req.params.id) as any;
+  const userId = req.user!.id;
+  const isSuperAdmin = req.user?.role === 'super_admin';
+
+  const tmpl = db.prepare('SELECT id, name, channel, user_id, is_default FROM templates WHERE id = ?').get(req.params.id) as any;
+  if (!tmpl) {
+    res.status(404).json({ success: false, error: 'القالب غير موجود' });
+    return;
+  }
+
+  if (tmpl.user_id !== userId && !isSuperAdmin) {
+    res.status(403).json({ success: false, error: 'لا تملك صلاحية حذف هذا القالب لأنه قالب افتراضي للنظام' });
+    return;
+  }
+
   db.prepare('DELETE FROM templates WHERE id = ?').run(req.params.id);
 
   logActivity({
@@ -172,6 +221,7 @@ router.delete('/:id', requireAuth, (req: AuthRequest, res: Response): void => {
     title: `حذف قالب: "${tmpl?.name || `#${req.params.id}`}"`,
     details: tmpl || null,
     status: 'warning',
+    userId,
   });
 
   res.json({ success: true, message: 'Template deleted successfully' });
