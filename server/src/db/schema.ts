@@ -208,6 +208,25 @@ export function runMigrations(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_email_verifications_email ON email_verifications(email);
 
+    CREATE TABLE IF NOT EXISTS invitations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      name TEXT,
+      invited_by INTEGER REFERENCES users(id),
+      token TEXT NOT NULL UNIQUE,
+      plan TEXT NOT NULL DEFAULT 'beta_free',
+      custom_message TEXT,
+      language TEXT NOT NULL DEFAULT 'ar',
+      status TEXT NOT NULL DEFAULT 'sent',
+      sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+      accepted_at TEXT,
+      expires_at TEXT NOT NULL DEFAULT (datetime('now', '+14 days')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(email);
+    CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations(token);
+    CREATE INDEX IF NOT EXISTS idx_invitations_status ON invitations(status);
+
     CREATE TABLE IF NOT EXISTS user_integrations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -392,78 +411,117 @@ function seedAdminUser(): void {
 function seedDefaultTemplates(): void {
   const db = getDatabase();
 
-  // Check if Alaa's default Frontend Engineer template already exists
-  const alaaEmailTmpl = db.prepare("SELECT id FROM templates WHERE name LIKE '%Frontend Engineer%' AND channel = 'email'").get() as { id: number } | undefined;
+  // 1. Purge legacy personal / hardcoded templates (Alaa / Frontend Engineer)
+  db.prepare("DELETE FROM templates WHERE name LIKE '%Alaa%' OR name LIKE '%Frontend Engineer%' OR body LIKE '%Alaa Abdullah%'").run();
 
-  if (!alaaEmailTmpl) {
-    // Reset existing email defaults
+  // 2. Seed Universal B2B Default Email Template (English)
+  const defaultEmailTmpl = db.prepare("SELECT id FROM templates WHERE name LIKE '%B2B Partnership%' AND channel = 'email'").get() as { id: number } | undefined;
+
+  if (!defaultEmailTmpl) {
     db.prepare("UPDATE templates SET is_default = 0 WHERE channel = 'email'").run();
 
-    // 1. Primary Default: Alaa Abdullah Frontend Engineer Outreach Email
     db.prepare(`
       INSERT INTO templates (name, channel, subject, body, is_default)
       VALUES (?, ?, ?, ?, 1)
     `).run(
-      'Frontend Engineer Application – Alaa Abdullah (Default)',
+      'B2B Partnership & Business Development (Email Default)',
       'email',
-      'Frontend Engineer Application – Alaa Abdullah | {{company_name}}',
+      'Exploring Partnership | {{company_name}} & {{sender_company}}',
       `<p>Hi {{person_name}},</p>
 
-<p>I'm a Frontend Engineer with 3 years of production experience in <strong>React.js</strong>, <strong>Next.js</strong>, and <strong>TypeScript</strong>. I came across the Front-end role at <strong>{{company_name}}</strong> and wanted to reach out directly.</p>
+<p>I hope this email finds you well.</p>
 
-<p>I've shipped production projects across e-commerce, SaaS, and enterprise platforms — always with a focus on performance, clean architecture, and end-to-end ownership. My recent work includes live platforms serving thousands of users built with the exact stack your role requires.</p>
+<p>I'm reaching out from <strong>{{sender_company}}</strong>. We've been following <strong>{{company_name}}</strong>'s growth and track record in the industry and see strong alignment between our offerings.</p>
 
-<p>I'd welcome the opportunity to discuss how I can contribute to your team.</p>
+<p>We help businesses like yours streamline operations, accelerate market reach, and establish valuable strategic partnerships across key regional markets.</p>
 
-<p style="margin: 24px 0 16px 0;">
-  <a href="https://drive.google.com/file/d/1AwwZPxL2alQrUaB6z_XWOB7tLVdKJepq/view?usp=drive_link" target="_blank" style="display: inline-block; background-color: #16a34a; color: #ffffff; padding: 10px 22px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 13px; box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);">
-    📄 View My Resume / CV
-  </a>
-</p>
+<p>Would you be open to a brief 10-minute introductory call next week to see how we might collaborate?</p>
 
-<p style="font-size: 12px; color: #64748b;">
-  Direct CV Link: <a href="https://drive.google.com/file/d/1AwwZPxL2alQrUaB6z_XWOB7tLVdKJepq/view?usp=drive_link" style="color: #2563eb; text-decoration: underline;">https://drive.google.com/file/d/1AwwZPxL2alQrUaB6z_XWOB7tLVdKJepq/view?usp=drive_link</a>
-</p>
-
-<p style="margin-top: 24px;">
-Best regards,<br>
-<strong>Alaa Abdullah</strong><br>
-📞 <a href="tel:+201040353590" style="color: inherit; text-decoration: none;">+201040353590</a><br>
-✉️ <a href="mailto:alaayasser2018@gmail.com" style="color: inherit; text-decoration: none;">alaayasser2018@gmail.com</a>
-</p>`
+<p>Best regards,<br>
+<strong>{{sender_name}}</strong><br>
+{{sender_title}}<br>
+{{sender_company}}<br>
+✉️ {{sender_email}} | 📞 {{sender_phone}}</p>`
     );
-    logger.info("Seeded Alaa's default Frontend Engineer email template");
+    logger.info('Seeded universal B2B Partnership default email template');
   }
 
-  // Check if Alaa's default WhatsApp template exists
-  const alaaWaTmpl = db.prepare("SELECT id FROM templates WHERE name LIKE '%Frontend Engineer%' AND channel = 'whatsapp'").get() as { id: number } | undefined;
+  // 3. Seed Arabic B2B Email Template
+  const arEmailTmpl = db.prepare("SELECT id FROM templates WHERE name LIKE '%شراكة تجارية%' AND channel = 'email'").get() as { id: number } | undefined;
+  if (!arEmailTmpl) {
+    db.prepare(`
+      INSERT INTO templates (name, channel, subject, body, is_default)
+      VALUES (?, ?, ?, ?, 0)
+    `).run(
+      'شراكة تجارية وتواصل أعمال (عربي)',
+      'email',
+      'فرصة تعاون تجاري واعدة مع {{company_name}}',
+      `<p>السيد / السيدة {{person_name}} المحترم،</p>
 
-  if (!alaaWaTmpl) {
+<p>تحية طيبة وبعد،</p>
+
+<p>نتواصل معكم من شركة <strong>{{sender_company}}</strong> لمتابعة فرص التعاون والعمل المشترك مع <strong>{{company_name}}</strong>.</p>
+
+<p>نحن متخصصون في مساعدة الشركات والمؤسسات الرائدة على توسيع شبكة أعمالها وفتح آفاق شراكات تجارية واستراتيجية مثمرة تلبي تطلعاتكم التوسعية.</p>
+
+<p>يسعدنا ترتيب اتصال تعريفي موجز (10 دقائق) خلال هذا الأسبوع لبحث سبل العمل المشترك التي تعود بالنفع على الطرفين.</p>
+
+<p>مع خالص التحية والتقدير،<br>
+<strong>{{sender_name}}</strong><br>
+{{sender_title}}<br>
+{{sender_company}}<br>
+✉️ {{sender_email}} | 📞 {{sender_phone}}</p>`
+    );
+    logger.info('Seeded Arabic B2B Partnership email template');
+  }
+
+  // 4. Seed Universal B2B Default WhatsApp Template (English)
+  const defaultWaTmpl = db.prepare("SELECT id FROM templates WHERE name LIKE '%B2B Quick Intro%' AND channel = 'whatsapp'").get() as { id: number } | undefined;
+
+  if (!defaultWaTmpl) {
     db.prepare("UPDATE templates SET is_default = 0 WHERE channel = 'whatsapp'").run();
 
     db.prepare(`
       INSERT INTO templates (name, channel, subject, body, is_default)
       VALUES (?, ?, ?, ?, 1)
     `).run(
-      'Frontend Engineer Intro – Alaa Abdullah (WhatsApp)',
+      'B2B Quick Intro (WhatsApp Default)',
       'whatsapp',
       null,
       `Hello {{person_name}} 👋
 
-I'm Alaa Abdullah, a Frontend Engineer with 3 years of production experience in React.js, Next.js, and TypeScript. I came across the Front-end role at {{company_name}} and wanted to reach out directly.
+I'm reaching out from {{sender_company}}. We've been following {{company_name}}'s work and would love to explore a quick partnership opportunity.
 
-I've shipped production projects across e-commerce, SaaS, and enterprise platforms — always with a focus on performance, clean architecture, and end-to-end ownership. My recent work includes live platforms serving thousands of users built with the exact stack your role requires.
-
-📄 My CV / Resume Link:
-https://drive.google.com/file/d/1AwwZPxL2alQrUaB6z_XWOB7tLVdKJepq/view?usp=drive_link
-
-I'd welcome the opportunity to discuss how I can contribute to your team.
+Do you have a few minutes this week for a brief introductory chat?
 
 Best regards,
-Alaa Abdullah
-+201040353590`
+{{sender_name}}
+{{sender_company}}`
     );
-    logger.info("Seeded Alaa's default Frontend Engineer WhatsApp template");
+    logger.info('Seeded universal B2B Quick Intro WhatsApp template');
+  }
+
+  // 5. Seed Arabic WhatsApp Template
+  const arWaTmpl = db.prepare("SELECT id FROM templates WHERE name LIKE '%تواصل أعمال سريع%' AND channel = 'whatsapp'").get() as { id: number } | undefined;
+  if (!arWaTmpl) {
+    db.prepare(`
+      INSERT INTO templates (name, channel, subject, body, is_default)
+      VALUES (?, ?, ?, ?, 0)
+    `).run(
+      'تواصل أعمال سريع عبر واتساب (عربي)',
+      'whatsapp',
+      null,
+      `مرحباً أستاذ {{person_name}} 👋
+
+نتواصل معكم من شركة {{sender_company}}. نتابع باهتمام نجاحات {{company_name}} في السوق، ويسعدنا بحث سبل التعاون والعمل المشترك بيننا.
+
+هل يناسبكم اتصال تعريفي موجز خلال هذا الأسبوع؟
+
+مع أطيب التحيات،
+{{sender_name}}
+{{sender_company}}`
+    );
+    logger.info('Seeded Arabic B2B WhatsApp template');
   }
 }
 

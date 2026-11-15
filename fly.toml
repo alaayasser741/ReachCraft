@@ -8,6 +8,7 @@ primary_region = "fra"
   PORT = "5000"
   NODE_ENV = "production"
   DATABASE_PATH = "/app/data/outreach.db"
+  CLIENT_URL = "https://reachcraft.fly.dev"
 
 [http_service]
   internal_port = 5000

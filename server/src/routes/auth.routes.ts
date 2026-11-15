@@ -138,12 +138,20 @@ router.post('/register-verify-otp', (req: Request, res: Response): void => {
   const salt = bcrypt.genSaltSync(10);
   const passwordHash = bcrypt.hashSync(password, salt);
 
+  // Check if this user was invited by admin
+  const pendingInvite = db.prepare("SELECT * FROM invitations WHERE email = ? AND status = 'sent'").get(email.toLowerCase()) as any;
+  const initialPlan = pendingInvite?.plan || 'beta_free';
+
   const insertStmt = db.prepare(`
     INSERT INTO users (email, password_hash, name, role, auth_provider, is_verified, plan, status, onboarding_completed, terms_accepted_at)
-    VALUES (?, ?, ?, 'user', 'local', 1, 'beta_free', 'active', 0, datetime('now'))
+    VALUES (?, ?, ?, 'user', 'local', 1, ?, 'active', 0, datetime('now'))
   `);
 
-  insertStmt.run(email.toLowerCase(), passwordHash, name);
+  insertStmt.run(email.toLowerCase(), passwordHash, name, initialPlan);
+
+  if (pendingInvite) {
+    db.prepare("UPDATE invitations SET status = 'accepted', accepted_at = datetime('now') WHERE id = ?").run(pendingInvite.id);
+  }
 
   const newUser = db.prepare(`
     SELECT id, email, name, role, plan, is_verified, onboarding_completed, status 
@@ -207,12 +215,20 @@ router.post('/google', async (req: Request, res: Response): Promise<void> => {
     `).get(payload.email.toLowerCase()) as AuthenticatedUser | undefined;
 
     if (!user) {
+      // Check if this Google user was invited by admin
+      const pendingInvite = db.prepare("SELECT * FROM invitations WHERE email = ? AND status = 'sent'").get(payload.email.toLowerCase()) as any;
+      const initialPlan = pendingInvite?.plan || 'beta_free';
+
       // First time Google registration
       const randomPassword = bcrypt.hashSync(Math.random().toString(36), 10);
       db.prepare(`
         INSERT INTO users (email, password_hash, name, role, auth_provider, is_verified, plan, status, onboarding_completed, terms_accepted_at)
-        VALUES (?, ?, ?, 'user', 'google', 1, 'beta_free', 'active', 0, datetime('now'))
-      `).run(payload.email.toLowerCase(), randomPassword, payload.name || payload.email.split('@')[0]);
+        VALUES (?, ?, ?, 'user', 'google', 1, ?, 'active', 0, datetime('now'))
+      `).run(payload.email.toLowerCase(), randomPassword, payload.name || payload.email.split('@')[0], initialPlan);
+
+      if (pendingInvite) {
+        db.prepare("UPDATE invitations SET status = 'accepted', accepted_at = datetime('now') WHERE id = ?").run(pendingInvite.id);
+      }
 
       user = db.prepare(`
         SELECT id, email, name, role, plan, is_verified, onboarding_completed, status 

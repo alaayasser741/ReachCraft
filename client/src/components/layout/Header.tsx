@@ -18,19 +18,24 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, title }) => {
 
   return (
     <>
-      <header className="h-16 bg-white/80 dark:bg-[#0b0f19]/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between px-4 sm:px-8 z-30 shrink-0">
-        <div className="flex items-center gap-3">
+      <header className="h-16 bg-white/80 dark:bg-[#0b0f19]/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between px-3 sm:px-6 lg:px-8 z-30 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={onOpenMobileMenu}
-            className="lg:hidden p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="lg:hidden p-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
+            aria-label="Open navigation menu"
           >
             <Menu className="w-5 h-5" />
           </button>
-          {title && <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">{title}</h2>}
+          {title && (
+            <h2 className="text-sm sm:text-base lg:text-lg font-bold text-slate-900 dark:text-white truncate max-w-[120px] xs:max-w-[170px] sm:max-w-xs md:max-w-none">
+              {title}
+            </h2>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Modern Theme Switcher (Light / Modern Night Mode) */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* Modern Theme Switcher */}
           <button
             onClick={toggleTheme}
             className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-amber-400 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all shadow-xs"
@@ -47,11 +52,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, title }) => {
           {/* Language Switcher Button */}
           <button
             onClick={toggleLanguage}
-            className="flex flex-row items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all shadow-xs"
+            className="flex flex-row items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all shadow-xs"
             title={language === 'ar' ? 'Switch to English' : 'التحويل إلى العربية'}
+            aria-label="Toggle Language"
           >
             <Globe className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400 shrink-0" />
-            <span>{language === 'ar' ? 'English' : 'العربية'}</span>
+            <span className="hidden sm:inline">{language === 'ar' ? 'English' : 'العربية'}</span>
           </button>
 
           {/* Free Stack Active Pill */}
@@ -66,9 +72,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, title }) => {
             size="sm"
             onClick={() => setIsDirectSendOpen(true)}
             leftIcon={<Send className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />}
-            className="border-brand-300 dark:border-brand-800/80 hover:bg-brand-50/50 dark:hover:bg-brand-950/30 text-brand-700 dark:text-brand-300"
+            className="border-brand-300 dark:border-brand-800/80 hover:bg-brand-50/50 dark:hover:bg-brand-950/30 text-brand-700 dark:text-brand-300 p-2 sm:px-3 sm:py-1.5"
+            title={t('header.directSend')}
+            aria-label={t('header.directSend')}
           >
-            <span>{t('header.directSend')}</span>
+            <span className="hidden md:inline">{t('header.directSend')}</span>
           </Button>
 
           <Link to="/upload" className="hidden sm:block">
@@ -78,8 +86,15 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu, title }) => {
           </Link>
 
           <Link to="/campaigns?action=new">
-            <Button variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />}>
-              {t('header.newCampaign')}
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus className="w-4 h-4" />}
+              className="p-2 sm:px-3 sm:py-1.5"
+              title={t('header.newCampaign')}
+              aria-label={t('header.newCampaign')}
+            >
+              <span className="hidden sm:inline">{t('header.newCampaign')}</span>
             </Button>
           </Link>
         </div>

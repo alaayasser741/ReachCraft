@@ -27,6 +27,11 @@ import {
   X,
   Layers,
   Zap,
+  MailPlus,
+  Copy,
+  ExternalLink,
+  Clock,
+  SendHorizontal,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -106,6 +111,23 @@ export const AdminDashboard: React.FC = () => {
     company_description: '',
   });
 
+  // Invitations State (دعوات التجربة)
+  const [invitations, setInvitations] = useState<any[]>([]);
+  const [invitationStats, setInvitationStats] = useState<any>(null);
+  const [invitationSearch, setInvitationSearch] = useState('');
+  const [invitationStatus, setInvitationStatus] = useState('all');
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [isBulkInvite, setIsBulkInvite] = useState(false);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({
+    email: '',
+    bulkEmails: '',
+    name: '',
+    plan: 'beta_free',
+    custom_message: '',
+    language: 'ar' as 'ar' | 'en',
+  });
+
   useEffect(() => {
     if (!isSuperAdmin) {
       navigate('/dashboard');
@@ -123,6 +145,10 @@ export const AdminDashboard: React.FC = () => {
       } else if (activeTab === 'users') {
         const res = await api.getAdminUsers(userSearch);
         setUsers(res.users);
+      } else if (activeTab === 'invitations') {
+        const res = await api.getAdminInvitations(invitationSearch, invitationStatus);
+        setInvitations(res.invitations);
+        setInvitationStats(res.stats);
       } else if (activeTab === 'plans') {
         const res = await api.getAdminPlans();
         setPlans(res.plans);
@@ -201,6 +227,107 @@ export const AdminDashboard: React.FC = () => {
     } finally {
       setIsUpdating(null);
     }
+  };
+
+  // --- INVITATION ACTIONS (دعوات التجربة) ---
+  const handleOpenInviteModal = () => {
+    setInviteForm({
+      email: '',
+      bulkEmails: '',
+      name: '',
+      plan: 'beta_free',
+      custom_message: '',
+      language: isAr ? 'ar' : 'en',
+    });
+    setIsBulkInvite(false);
+    setInviteModalOpen(true);
+  };
+
+  const handleSendInvitation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSendingInvite(true);
+    try {
+      if (isBulkInvite) {
+        const emails = inviteForm.bulkEmails
+          .split(/[\n,]+/)
+          .map((em) => em.trim())
+          .filter((em) => em.length > 0 && em.includes('@'));
+
+        if (emails.length === 0) {
+          toastError(isAr ? 'يرجى إدخال بريد إلكتروني صحيح واحد على الأقل' : 'Please enter at least one valid email');
+          setIsSendingInvite(false);
+          return;
+        }
+
+        const res = await api.sendAdminInvitation({
+          emails,
+          plan: inviteForm.plan,
+          custom_message: inviteForm.custom_message,
+          language: inviteForm.language,
+        });
+
+        toastSuccess(res.message);
+      } else {
+        if (!inviteForm.email || !inviteForm.email.includes('@')) {
+          toastError(isAr ? 'يرجى إدخال بريد إلكتروني صحيح' : 'Please enter a valid email');
+          setIsSendingInvite(false);
+          return;
+        }
+
+        const res = await api.sendAdminInvitation({
+          email: inviteForm.email,
+          name: inviteForm.name,
+          plan: inviteForm.plan,
+          custom_message: inviteForm.custom_message,
+          language: inviteForm.language,
+        });
+
+        toastSuccess(res.message);
+      }
+
+      setInviteModalOpen(false);
+      loadCurrentTabData();
+    } catch (err: any) {
+      toastError(err.message || 'Failed to send invitation');
+    } finally {
+      setIsSendingInvite(false);
+    }
+  };
+
+  const handleResendInvitation = async (id: number, email: string) => {
+    setIsUpdating(id);
+    try {
+      await api.resendAdminInvitation(id);
+      toastSuccess(isAr ? `تمت إعادة إرسال الدعوة إلى ${email} بنجاح` : `Invitation resent to ${email}`);
+      loadCurrentTabData();
+    } catch (err: any) {
+      toastError(err.message || 'Failed to resend invitation');
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const handleDeleteInvitation = async (id: number, email: string) => {
+    if (!window.confirm(isAr ? `هل أنت متأكد من حذف وإلغاء دعوة ${email}؟` : `Revoke invitation for ${email}?`)) {
+      return;
+    }
+    setIsUpdating(id);
+    try {
+      await api.deleteAdminInvitation(id);
+      toastSuccess(isAr ? 'تم حذف الدعوة بنجاح' : 'Invitation deleted');
+      loadCurrentTabData();
+    } catch (err: any) {
+      toastError(err.message || 'Failed to delete invitation');
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const copyInviteLink = (token: string, email: string) => {
+    const origin = window.location.origin;
+    const link = `${origin}/register?invitation=${token}&email=${encodeURIComponent(email)}`;
+    navigator.clipboard.writeText(link);
+    toastSuccess(isAr ? 'تم نسخ رابط الدعوة إلى الحافظة' : 'Invitation link copied to clipboard');
   };
 
   // --- PLANS ACTIONS ---
@@ -393,6 +520,7 @@ export const AdminDashboard: React.FC = () => {
         {[
           { id: 'overview', label: isAr ? 'نظرة عامة ومراقبة' : 'Overview', icon: BarChart3 },
           { id: 'users', label: isAr ? 'إدارة المستخدمين' : 'Users', icon: Users },
+          { id: 'invitations', label: isAr ? 'دعوات التجربة' : 'Invitations', icon: MailPlus },
           { id: 'plans', label: isAr ? 'الباقات والحدود' : 'Plans', icon: CreditCard },
           { id: 'templates', label: isAr ? 'القوالب الافتراضية' : 'Default Templates', icon: FileCode2 },
           { id: 'verified', label: isAr ? 'قاعدة الاتصال الموثقة' : 'Verified Pool', icon: ShieldCheck },
@@ -705,6 +833,299 @@ export const AdminDashboard: React.FC = () => {
             )}
           </div>
         </Card>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB: INVITATIONS (دعوات التجربة)                         */}
+      {/* ========================================================= */}
+      {activeTab === 'invitations' && (
+        <div className="space-y-6">
+          {/* Telemetry Metric Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="p-4 sm:p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {isAr ? 'إجمالي الدعوات' : 'Total Invitations'}
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                  <MailPlus className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-2">
+                {invitationStats?.total || 0}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {isAr ? 'دعوة تم إرسالها' : 'invitations dispatched'}
+              </p>
+            </Card>
+
+            <Card className="p-4 sm:p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {isAr ? 'تم التسجيل والقبول' : 'Accepted & Joined'}
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-2">
+                {invitationStats?.accepted || 0}
+              </p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                {isAr ? 'حساب قام بالتسجيل' : 'registered accounts'}
+              </p>
+            </Card>
+
+            <Card className="p-4 sm:p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {isAr ? 'في انتظار التسجيل' : 'Pending'}
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                  <Clock className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-2xl sm:text-3xl font-extrabold text-amber-600 dark:text-amber-400 mt-2">
+                {invitationStats?.pending || 0}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {isAr ? 'صالح لمدة 14 يوماً' : 'valid for 14 days'}
+              </p>
+            </Card>
+
+            <Card className="p-4 sm:p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {isAr ? 'نسبة التحويل' : 'Conversion Rate'}
+                </span>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+              </div>
+              <p className="text-2xl sm:text-3xl font-extrabold text-blue-600 dark:text-blue-400 mt-2">
+                {invitationStats?.conversionRate || 0}%
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {isAr ? 'معدل قبول الدعوات' : 'acceptance rate'}
+              </p>
+            </Card>
+          </div>
+
+          {/* Action Header & Search */}
+          <Card className="p-4 sm:p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  {isAr ? 'سجل دعوات تجربة المنصة' : 'Platform Trial Invitations'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {isAr
+                    ? 'إرسال دعوات عبر البريد الإلكتروني مع روابط مخصصة لتجربة المنصة، ومتابعة من سجل ومن لم يسجل بعد.'
+                    : 'Dispatch email invitations with custom onboarding links and track registration status.'}
+                </p>
+              </div>
+
+              <Button
+                onClick={handleOpenInviteModal}
+                className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-md shadow-brand-500/20"
+              >
+                <MailPlus className="w-4 h-4" />
+                <span>{isAr ? 'إرسال دعوة جديدة' : 'Send New Invitation'}</span>
+              </Button>
+            </div>
+
+            {/* Filter controls */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="relative flex-1">
+                <Search className={`w-4 h-4 absolute top-1/2 -translate-y-1/2 text-slate-400 ${isAr ? 'right-3' : 'left-3'}`} />
+                <input
+                  type="text"
+                  value={invitationSearch}
+                  onChange={(e) => setInvitationSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && loadCurrentTabData()}
+                  placeholder={isAr ? 'بحث بالبريد الإلكتروني أو الاسم...' : 'Search by email or name...'}
+                  className={`w-full py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                    isAr ? 'pr-9 pl-3' : 'pl-9 pr-3'
+                  }`}
+                />
+              </div>
+
+              <select
+                value={invitationStatus}
+                onChange={(e) => {
+                  setInvitationStatus(e.target.value);
+                }}
+                className="py-1.5 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="all">{isAr ? 'جميع الحالات' : 'All Statuses'}</option>
+                <option value="sent">{isAr ? 'معلقة (بانتظار التسجيل)' : 'Pending (Sent)'}</option>
+                <option value="accepted">{isAr ? 'مقبولة (تم التسجيل)' : 'Accepted (Registered)'}</option>
+                <option value="expired">{isAr ? 'منتهية الصلاحية' : 'Expired'}</option>
+              </select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadCurrentTabData}
+                className="text-xs"
+              >
+                <span>{isAr ? 'تطبيق الفلتر' : 'Filter'}</span>
+              </Button>
+            </div>
+
+            {/* Invitations Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-start text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold bg-slate-50/50 dark:bg-slate-850/50">
+                    <th className="py-3 px-4 text-start">{isAr ? 'المدعو' : 'Invitee'}</th>
+                    <th className="py-3 px-4 text-start">{isAr ? 'الباقة الممنوحة' : 'Assigned Plan'}</th>
+                    <th className="py-3 px-4 text-start">{isAr ? 'الحالة' : 'Status'}</th>
+                    <th className="py-3 px-4 text-start">{isAr ? 'تاريخ الإرسال' : 'Sent Date'}</th>
+                    <th className="py-3 px-4 text-start">{isAr ? 'الصلاحية' : 'Expires At'}</th>
+                    <th className="py-3 px-4 text-end">{isAr ? 'إجراءات' : 'Actions'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {invitations.map((inv) => {
+                    const isAccepted = inv.status === 'accepted';
+                    const isExpired = inv.status === 'expired' || (!isAccepted && new Date(inv.expires_at) < new Date());
+
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-850/50 transition-colors">
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-950/70 text-brand-700 dark:text-brand-300 font-bold flex items-center justify-center shrink-0">
+                              {(inv.name ? inv.name[0] : inv.email[0]).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 dark:text-white truncate">
+                                {inv.name || (isAr ? 'بدون اسم' : 'Unnamed')}
+                              </p>
+                              <p className="text-slate-400 font-mono text-[11px] truncate">{inv.email}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {inv.plan === 'pro' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              <Crown className="w-3 h-3 text-amber-500" />
+                              <span>{isAr ? 'احترافية (Pro VIP)' : 'Pro VIP Plan'}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                              <span>{isAr ? 'تجريبية مجانية' : 'Beta Free'}</span>
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {isAccepted ? (
+                            <Badge variant="success" size="sm">
+                              <span className="flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                {isAr ? 'تم التسجيل والقبول' : 'Accepted & Joined'}
+                              </span>
+                            </Badge>
+                          ) : isExpired ? (
+                            <Badge variant="destructive" size="sm">
+                              {isAr ? 'منتهية الصلاحية' : 'Expired'}
+                            </Badge>
+                          ) : (
+                            <Badge variant="warning" size="sm">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {isAr ? 'معلقة (بانتظار التسجيل)' : 'Pending'}
+                              </span>
+                            </Badge>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
+                          {new Date(inv.sent_at).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
+                          {new Date(inv.expires_at).toLocaleDateString(isAr ? 'ar-EG' : 'en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-end whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Copy direct invite URL */}
+                            <button
+                              type="button"
+                              onClick={() => copyInviteLink(inv.token, inv.email)}
+                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                              title={isAr ? 'نسخ رابط الدعوة المباشر للمشاركة' : 'Copy direct invitation link'}
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Resend email */}
+                            {!isAccepted && (
+                              <button
+                                type="button"
+                                disabled={isUpdating === inv.id}
+                                onClick={() => handleResendInvitation(inv.id, inv.email)}
+                                className="p-1.5 rounded-lg border border-brand-200 dark:border-brand-800 text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950/40 transition-all"
+                                title={isAr ? 'إعادة إرسال الإيميل' : 'Resend invitation email'}
+                              >
+                                <SendHorizontal className={`w-3.5 h-3.5 ${isUpdating === inv.id ? 'animate-spin' : ''}`} />
+                              </button>
+                            )}
+
+                            {/* Delete invitation */}
+                            <button
+                              type="button"
+                              disabled={isUpdating === inv.id}
+                              onClick={() => handleDeleteInvitation(inv.id, inv.email)}
+                              className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                              title={isAr ? 'حذف الدعوة' : 'Delete invitation'}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {invitations.length === 0 && !isLoading && (
+                <div className="text-center py-12 space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 mx-auto flex items-center justify-center">
+                    <MailPlus className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {isAr ? 'لا توجد دعوات مرسلة حالياً' : 'No invitations found'}
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    {isAr
+                      ? 'يمكنك البدء بدعوة عملائك أو زملائك لتجربة المنصة فوراً عن طريق إرسال أول دعوة.'
+                      : 'Send your first platform invitation to welcome users to experience ReachCraft.'}
+                  </p>
+                  <Button
+                    onClick={handleOpenInviteModal}
+                    size="sm"
+                    className="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold"
+                  >
+                    <Plus className="w-3.5 h-3.5 ms-1" />
+                    <span>{isAr ? 'إرسال أول دعوة الآن' : 'Send First Invitation'}</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* ========================================================= */}
@@ -1337,6 +1758,222 @@ export const AdminDashboard: React.FC = () => {
               className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs text-slate-800 dark:text-slate-200 max-h-72 overflow-y-auto border border-slate-200/50 dark:border-slate-700/50"
               dangerouslySetInnerHTML={{ __html: previewTemplate.body }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: SEND INVITATION (دعوة لتجربة المنصة)                */}
+      {/* ========================================================= */}
+      {inviteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5 my-8">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b pb-3.5 border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+                  <MailPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                    {isAr ? 'إرسال دعوة لتجربة ReachCraft' : 'Send ReachCraft Trial Invitation'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {isAr
+                      ? 'سيصل إيميل رسمي احترافي للمدعو مع رابط تفعيل مباشر'
+                      : 'An official invitation email will be sent with direct activation link'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInviteModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Single vs Bulk Mode Toggle */}
+            <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-850 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setIsBulkInvite(false)}
+                className={`py-2 px-3 rounded-lg transition-all text-center ${
+                  !isBulkInvite
+                    ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                {isAr ? 'دعوة فردية (Single)' : 'Single Invitation'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBulkInvite(true)}
+                className={`py-2 px-3 rounded-lg transition-all text-center ${
+                  isBulkInvite
+                    ? 'bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 shadow-xs font-bold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                {isAr ? 'دعوات متعددة (Bulk)' : 'Bulk Invitations'}
+              </button>
+            </div>
+
+            <form onSubmit={handleSendInvitation} className="space-y-4">
+              {/* Form inputs according to mode */}
+              {!isBulkInvite ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      {isAr ? 'البريد الإلكتروني للمدعو *' : 'Invitee Email Address *'}
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={inviteForm.email}
+                      onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                      placeholder="client@company.com"
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-brand-500/30"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                      {isAr ? 'اسم المدعو (اختياري)' : 'Invitee Name (Optional)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={inviteForm.name}
+                      onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                      placeholder={isAr ? 'مثال: أ. أحمد مصطفى' : 'e.g. John Doe'}
+                      className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-brand-500/30"
+                    />
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      {isAr ? 'قائمة الإيميلات (مفصولة بسطر أو فاصلة) *' : 'Email List (Comma or Line Separated) *'}
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      {
+                        inviteForm.bulkEmails
+                          .split(/[\n,]+/)
+                          .map((e) => e.trim())
+                          .filter((e) => e.includes('@')).length
+                      }{' '}
+                      {isAr ? 'إيميل محدد' : 'detected'}
+                    </span>
+                  </div>
+                  <textarea
+                    required
+                    rows={4}
+                    value={inviteForm.bulkEmails}
+                    onChange={(e) => setInviteForm({ ...inviteForm, bulkEmails: e.target.value })}
+                    placeholder="founder@startup.com&#10;cto@agency.co&#10;sales@company.com"
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-brand-500/30 font-mono"
+                  />
+                </div>
+              )}
+
+              {/* Plan & Language Selection */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    {isAr ? 'الباقة الممنوحة عند التسجيل' : 'Assigned Plan'}
+                  </label>
+                  <select
+                    value={inviteForm.plan}
+                    onChange={(e) => setInviteForm({ ...inviteForm, plan: e.target.value })}
+                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-brand-500/30"
+                  >
+                    <option value="beta_free">{isAr ? 'Beta Free (تجربة بيتا مجانية)' : 'Beta Free Trial'}</option>
+                    <option value="pro">{isAr ? 'Pro Plan (باقة المحترفين كاملة)' : 'Pro Plan'}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                    {isAr ? 'لغة الإيميل' : 'Email Language'}
+                  </label>
+                  <select
+                    value={inviteForm.language}
+                    onChange={(e) => setInviteForm({ ...inviteForm, language: e.target.value as 'ar' | 'en' })}
+                    className="w-full text-xs px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-brand-500/30"
+                  >
+                    <option value="ar">{isAr ? 'العربية (Arabic)' : 'Arabic (العربية)'}</option>
+                    <option value="en">{isAr ? 'الإنجليزية (English)' : 'English'}</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Custom Personal Note in Email */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  {isAr ? 'ملاحظة شخصية من الأدمن (اختياري تظهر في الإيميل)' : 'Personal Note (Optional, shown in email)'}
+                </label>
+                <textarea
+                  rows={2}
+                  value={inviteForm.custom_message}
+                  onChange={(e) => setInviteForm({ ...inviteForm, custom_message: e.target.value })}
+                  placeholder={
+                    isAr
+                      ? 'يسعدنا جداً مشاركتك في تجربة النسخة الأولية لمنصة ReachCraft وإعطائنا ملاحظاتك القيمة...'
+                      : "We'd love for you to test ReachCraft early access and share your feedback..."
+                  }
+                  className="w-full text-xs px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-brand-500/30"
+                />
+              </div>
+
+              {/* Notice Box */}
+              <div className="p-3 rounded-xl bg-brand-50 dark:bg-brand-950/40 border border-brand-200/50 dark:border-brand-900/50 flex items-start gap-2.5 text-xs text-brand-900 dark:text-brand-200">
+                <Sparkles className="w-4 h-4 text-brand-600 dark:text-brand-400 shrink-0 mt-0.5" />
+                <div className="text-[11px] leading-relaxed">
+                  {isAr ? (
+                    <>
+                      سيتلقى المدعو بريداً احترافياً يحتوي على رابط تسجيل مباشر وفريد. بمجرد دخوله وتسجيل حسابه (بالإيميل
+                      أو حساب Google)، سيتم ترقية حسابه تلقائياً للباقة المختارة لمدة 14 يوماً مع تفعيل فوري.
+                    </>
+                  ) : (
+                    <>
+                      The invitee will receive a branded email with a unique activation link. Upon signing up (via OTP
+                      or Google), their account will automatically be activated with the selected plan.
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setInviteModalOpen(false)}
+                  disabled={isSendingInvite}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  {isAr ? 'إلغاء' : 'Cancel'}
+                </button>
+                <Button
+                  type="submit"
+                  disabled={isSendingInvite}
+                  className="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-5 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-brand-500/20"
+                >
+                  {isSendingInvite ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>{isAr ? 'جارِ الإرسال...' : 'Sending...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <SendHorizontal className="w-3.5 h-3.5" />
+                      <span>{isAr ? 'إرسال الدعوة الآن' : 'Send Invitation Now'}</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

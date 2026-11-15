@@ -53,9 +53,9 @@ export const LandingTechStack: React.FC = () => {
         </div>
 
         {/* Cost Comparison Callout */}
-        <div className="max-w-4xl mx-auto rounded-3xl border border-emerald-300/90 dark:border-emerald-800/90 bg-emerald-50/40 dark:bg-emerald-950/20 p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-sm">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-sm">
+        <div className="max-w-4xl mx-auto rounded-3xl border border-emerald-300/90 dark:border-emerald-800/90 bg-emerald-50/40 dark:bg-emerald-950/20 p-5 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-5 sm:gap-6 shadow-sm">
+          <div className="space-y-1 text-center sm:text-start">
+            <div className="flex items-center justify-center sm:justify-start gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-sm">
               <DollarSign className="w-4 h-4" />
               <span>Zero-Dollar Software Architecture</span>
             </div>
@@ -64,15 +64,15 @@ export const LandingTechStack: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="text-center p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
+          <div className="flex items-center justify-center gap-3 shrink-0">
+            <div className="text-center p-2.5 sm:p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs">
               <span className="text-[10px] text-slate-400 block font-semibold">Other SaaS</span>
-              <span className="text-lg font-bold text-rose-500 line-through">$180/mo</span>
+              <span className="text-base sm:text-lg font-bold text-rose-500 line-through">$180/mo</span>
             </div>
             <span className="font-bold text-slate-400">vs</span>
-            <div className="text-center p-3 rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-500/25">
+            <div className="text-center p-2.5 sm:p-3 rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-500/25">
               <span className="text-[10px] text-emerald-100 block font-semibold">ReachCraft</span>
-              <span className="text-lg font-black">$0 / Free</span>
+              <span className="text-base sm:text-lg font-black">$0 / Free</span>
             </div>
           </div>
         </div>

@@ -171,6 +171,38 @@ export const api = {
     request<{ success: boolean; message: string }>(`/admin/verified-contacts/${id}`, {
       method: 'DELETE',
     }),
+  // Admin Invitations (دعوات تجربة المنصة)
+  getAdminInvitations: (search?: string, status?: string) => {
+    const q = new URLSearchParams();
+    if (search) q.set('search', search);
+    if (status) q.set('status', status);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return request<{
+      success: boolean;
+      invitations: any[];
+      stats: { total: number; accepted: number; pending: number; expired: number; conversionRate: number };
+    }>(`/admin/invitations${qs}`);
+  },
+  sendAdminInvitation: (data: {
+    email?: string;
+    emails?: string[];
+    name?: string;
+    plan?: string;
+    custom_message?: string;
+    language?: 'ar' | 'en';
+  }) =>
+    request<{ success: boolean; message: string; results?: any[] }>('/admin/invitations/send', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  resendAdminInvitation: (id: number) =>
+    request<{ success: boolean; message: string }>(`/admin/invitations/${id}/resend`, {
+      method: 'POST',
+    }),
+  deleteAdminInvitation: (id: number) =>
+    request<{ success: boolean; message: string }>(`/admin/invitations/${id}`, {
+      method: 'DELETE',
+    }),
   // Admin Global Audit Logs
   getAdminLogs: (params?: { category?: string; action?: string; search?: string; page?: number; limit?: number }) => {
     const q = new URLSearchParams();

@@ -1,4 +1,6 @@
 import nodemailer from 'nodemailer';
+import path from 'path';
+import fs from 'fs';
 import { getDatabase } from '../../db/connection.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
@@ -19,6 +21,24 @@ function getSystemTransporter(): nodemailer.Transporter {
   });
 
   return transporterInstance;
+}
+
+function resolveLogoPath(): string | null {
+  const possiblePaths = [
+    path.resolve(process.cwd(), 'client/dist/logo.png'),
+    path.resolve(process.cwd(), 'client/public/logo.png'),
+    path.resolve(process.cwd(), 'dist/logo.png'),
+    path.resolve(__dirname, '../../../../client/dist/logo.png'),
+    path.resolve(__dirname, '../../../../client/public/logo.png'),
+    path.resolve(__dirname, '../../../client/public/logo.png'),
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  return null;
 }
 
 /**
@@ -42,53 +62,79 @@ export async function sendOtpEmail(email: string, language: 'ar' | 'en' = 'ar'):
 
     logger.info({ email, code }, 'Generated registration OTP code');
 
-    // 4. Build bilingual HTML email
+    // 4. Build bilingual HTML email + Plain text version
     const isAr = language === 'ar';
+    const baseUrl = (env.CLIENT_URL || 'https://reachcraft.fly.dev').replace(/\/$/, '');
     const subject = isAr ? 'رمز التحقق الخاص بحسابك في ReachCraft' : 'Your ReachCraft Verification Code';
+
+    const logoPath = resolveLogoPath();
+    const logoCid = 'reachcraft-logo@platform';
+    const logoSrc = logoPath ? `cid:${logoCid}` : `${baseUrl}/logo.png`;
+
+    const textBody = isAr
+      ? `رمز التحقق الخاص بحسابك في ReachCraft
+
+استخدم الرمز التالي لتأكيد بريدك الإلكتروني وإكمال إنشاء الحساب:
+${code}
+
+صلاحية هذا الرمز هي 10 دقائق فقط.
+إذا لم تكن قد طلبت هذا الرمز، يمكنك تجاهل هذه الرسالة.
+
+فريق ReachCraft
+${baseUrl}`
+      : `Your ReachCraft Verification Code
+
+Use the following verification code to confirm your email and complete registration:
+${code}
+
+This code is valid for 10 minutes only.
+If you did not request this, you can safely ignore this email.
+
+ReachCraft Team
+${baseUrl}`;
 
     const htmlBody = isAr ? `
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
       <head>
         <meta charset="utf-8">
-        <style>
-          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 24px; margin: 0; }
-          .container { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
-          .title { font-size: 24px; font-weight: bold; margin: 0; }
-          .content { padding: 32px 24px; text-align: right; }
-          .otp-card { background: #f0fdf4; border: 2px dashed #10b981; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0; }
-          .otp-code { font-size: 38px; font-weight: 800; letter-spacing: 8px; color: #065f46; font-family: monospace; }
-          .footer { background: #f8fafc; padding: 20px 24px; text-align: center; font-size: 13px; color: #64748b; border-top: 1px solid #f1f5f9; }
-          .security-badge { display: inline-flex; align-items: center; gap: 6px; background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }
-        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
       </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1 class="title">ReachCraft</h1>
-            <p style="margin: 6px 0 0 0; opacity: 0.9; font-size: 14px;">منصة استخراج جهات الاتصال والأتمتة</p>
-          </div>
-          <div class="content">
-            <div style="text-align: center;">
-              <span class="security-badge">🛡️ رمز تحقق مؤمن لمرة واحدة</span>
-            </div>
-            <h2 style="font-size: 18px; color: #0f172a; margin-top: 0;">تأكيد بريدك الإلكتروني</h2>
-            <p style="font-size: 15px; line-height: 1.6; color: #475569;">
-              أهلاً بك! لقد استلمنا طلباً لإنشاء حساب في ReachCraft باستخدام هذا البريد. استخدم الرمز التالي لإكمال عملية التسجيل:
-            </p>
-            <div class="otp-card">
-              <div class="otp-code">${code}</div>
-              <p style="margin: 8px 0 0 0; font-size: 13px; color: #047857;">صالح لمدة 10 دقائق فقط</p>
-            </div>
-            <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
-              إذا لم تكن قد طلبت إنشاء هذا الحساب، يمكنك تجاهل هذه الرسالة بأمان تام.
-            </p>
-          </div>
-          <div class="footer">
-            ReachCraft Verification System • حماية وتشفير متكامل
-          </div>
-        </div>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 24px 12px; margin: 0; line-height: 1.6;">
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" style="max-width: 520px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="background-color: #064e3b; padding: 32px 24px 24px 24px; text-align: center;">
+                    <img src="${logoSrc}" alt="ReachCraft" width="56" height="56" style="width: 56px; height: 56px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.2);" />
+                    <h1 style="color: #ffffff; font-size: 22px; font-weight: 800; margin: 12px 0 0 0;">ReachCraft</h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 32px 28px; text-align: right;">
+                    <h2 style="font-size: 16px; color: #0f172a; margin-top: 0; font-weight: 700;">تأكيد بريدك الإلكتروني</h2>
+                    <p style="font-size: 14px; color: #475569; margin-bottom: 20px;">
+                      استخدم الرمز التالي لإكمال تسجيل حسابك في منصة ReachCraft:
+                    </p>
+                    <div style="background-color: #f0fdf4; border: 2px dashed #10b981; border-radius: 12px; padding: 18px; text-align: center; margin: 20px 0;">
+                      <div style="font-size: 34px; font-weight: 800; letter-spacing: 6px; color: #065f46; font-family: monospace;">${code}</div>
+                      <p style="margin: 6px 0 0 0; font-size: 12px; color: #047857;">صالح لمدة 10 دقائق فقط</p>
+                    </div>
+                    <p style="font-size: 12px; color: #94a3b8; margin: 20px 0 0 0;">
+                      إذا لم تكن قد طلبت إنشاء هذا الحساب، يمكنك تجاهل هذه الرسالة بأمان تام.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 16px 24px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #f1f5f9;">
+                    نظام الحماية والتحقق • ReachCraft Verification
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
       </body>
       </html>
     ` : `
@@ -96,94 +142,106 @@ export async function sendOtpEmail(email: string, language: 'ar' | 'en' = 'ar'):
       <html dir="ltr" lang="en">
       <head>
         <meta charset="utf-8">
-        <style>
-          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 24px; margin: 0; }
-          .container { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-          .header { background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
-          .title { font-size: 24px; font-weight: bold; margin: 0; }
-          .content { padding: 32px 24px; text-align: left; }
-          .otp-card { background: #f0fdf4; border: 2px dashed #10b981; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0; }
-          .otp-code { font-size: 38px; font-weight: 800; letter-spacing: 8px; color: #065f46; font-family: monospace; }
-          .footer { background: #f8fafc; padding: 20px 24px; text-align: center; font-size: 13px; color: #64748b; border-top: 1px solid #f1f5f9; }
-          .security-badge { display: inline-flex; align-items: center; gap: 6px; background: #e0f2fe; color: #0369a1; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }
-        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
       </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1 class="title">ReachCraft</h1>
-            <p style="margin: 6px 0 0 0; opacity: 0.9; font-size: 14px;">B2B Outreach & Automation Platform</p>
-          </div>
-          <div class="content">
-            <div style="text-align: center;">
-              <span class="security-badge">🛡️ Secure One-Time Passcode</span>
-            </div>
-            <h2 style="font-size: 18px; color: #0f172a; margin-top: 0;">Verify your email address</h2>
-            <p style="font-size: 15px; line-height: 1.6; color: #475569;">
-              Welcome! We received a request to create a ReachCraft account with this email. Use the code below to complete your registration:
-            </p>
-            <div class="otp-card">
-              <div class="otp-code">${code}</div>
-              <p style="margin: 8px 0 0 0; font-size: 13px; color: #047857;">Expires in 10 minutes</p>
-            </div>
-            <p style="font-size: 13px; color: #94a3b8; line-height: 1.5;">
-              If you did not request this account, you can safely ignore this email.
-            </p>
-          </div>
-          <div class="footer">
-            ReachCraft Verification System • Zero-knowledge Privacy Guaranteed
-          </div>
-        </div>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 24px 12px; margin: 0; line-height: 1.6;">
+        <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" style="max-width: 520px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="background-color: #064e3b; padding: 32px 24px 24px 24px; text-align: center;">
+                    <img src="${logoSrc}" alt="ReachCraft" width="56" height="56" style="width: 56px; height: 56px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.2);" />
+                    <h1 style="color: #ffffff; font-size: 22px; font-weight: 800; margin: 12px 0 0 0;">ReachCraft</h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 32px 28px; text-align: left;">
+                    <h2 style="font-size: 16px; color: #0f172a; margin-top: 0; font-weight: 700;">Confirm Your Email</h2>
+                    <p style="font-size: 14px; color: #475569; margin-bottom: 20px;">
+                      Use the following one-time code to complete your ReachCraft account registration:
+                    </p>
+                    <div style="background-color: #f0fdf4; border: 2px dashed #10b981; border-radius: 12px; padding: 18px; text-align: center; margin: 20px 0;">
+                      <div style="font-size: 34px; font-weight: 800; letter-spacing: 6px; color: #065f46; font-family: monospace;">${code}</div>
+                      <p style="margin: 6px 0 0 0; font-size: 12px; color: #047857;">Valid for 10 minutes only</p>
+                    </div>
+                    <p style="font-size: 12px; color: #94a3b8; margin: 20px 0 0 0;">
+                      If you did not request this registration, you can safely ignore this email.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 16px 24px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #f1f5f9;">
+                    Security Verification • ReachCraft
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
       </body>
       </html>
     `;
 
     const transporter = getSystemTransporter();
-    await transporter.sendMail({
-      from: `"${env.SMTP_FROM_NAME}" <${env.SMTP_FROM_EMAIL}>`,
+
+    const mailOptions: nodemailer.SendMailOptions = {
+      from: `"${env.SMTP_FROM_NAME || 'ReachCraft'}" <${env.SMTP_USER}>`,
       to: email,
+      replyTo: env.SMTP_USER,
       subject,
+      text: textBody,
       html: htmlBody,
-    });
+      headers: {
+        'X-Mailer': 'ReachCraft Verification System',
+        'Auto-Submitted': 'auto-generated',
+      },
+    };
+
+    if (logoPath) {
+      mailOptions.attachments = [
+        {
+          filename: 'reachcraft-logo.png',
+          path: logoPath,
+          cid: logoCid,
+          contentDisposition: 'inline',
+        },
+      ];
+    }
+
+    await transporter.sendMail(mailOptions);
 
     return { success: true, code };
   } catch (err: any) {
-    logger.error({ err, email }, 'Failed to send OTP email');
-    return { success: false, error: err.message || 'Failed to send verification email' };
+    logger.error({ error: err.message, email }, 'Failed to send OTP verification email');
+    return { success: false, error: err.message || 'Failed to send OTP code' };
   }
 }
 
 /**
- * Verify OTP code for a given email address.
+ * Verify a submitted 6-digit OTP code.
  */
 export function verifyOtpCode(email: string, code: string): { valid: boolean; message?: string } {
   const db = getDatabase();
 
   const record = db.prepare(`
-    SELECT id, code, expires_at
-    FROM email_verifications
-    WHERE email = ?
-    ORDER BY id DESC
-    LIMIT 1
-  `).get(email.toLowerCase()) as { id: number; code: string; expires_at: string } | undefined;
+    SELECT * FROM email_verifications 
+    WHERE email = ? AND code = ?
+  `).get(email.toLowerCase(), code.trim()) as any;
 
   if (!record) {
-    return { valid: false, message: 'No verification request found for this email' };
+    return { valid: false, message: 'كود التحقق غير صحيح أو لم يتم طلبه.' };
   }
 
-  // Check expiration
   const now = new Date();
-  const expiresAt = new Date(record.expires_at.replace(' ', 'T') + 'Z');
+  const expiresAt = new Date(record.expires_at);
 
   if (now > expiresAt) {
-    return { valid: false, message: 'Verification code has expired. Please request a new code.' };
+    db.prepare('DELETE FROM email_verifications WHERE id = ?').run(record.id);
+    return { valid: false, message: 'انتهت صلاحية رمز التحقق (10 دقائق). يرجى طلب رمز جديد.' };
   }
 
-  if (record.code !== code.trim()) {
-    return { valid: false, message: 'Incorrect verification code. Please check and try again.' };
-  }
-
-  // Delete used code
+  // Consume code immediately upon success
   db.prepare('DELETE FROM email_verifications WHERE email = ?').run(email.toLowerCase());
 
   return { valid: true };

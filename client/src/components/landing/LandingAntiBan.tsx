@@ -24,9 +24,9 @@ export const LandingAntiBan: React.FC = () => {
         </div>
 
         {/* Comparison Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 max-w-5xl mx-auto">
           {/* Traditional Blasters (High Risk) */}
-          <div className="rounded-3xl border border-rose-200/90 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/10 p-8 space-y-6">
+          <div className="rounded-3xl border border-rose-200/90 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/10 p-5 sm:p-8 space-y-5 sm:space-y-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-5 h-5" />
@@ -62,7 +62,7 @@ export const LandingAntiBan: React.FC = () => {
           </div>
 
           {/* ReachCraft Intelligent Engine (Safe) */}
-          <div className="rounded-3xl border border-emerald-300/90 dark:border-emerald-800/90 bg-emerald-50/30 dark:bg-emerald-950/15 p-8 space-y-6 shadow-xl shadow-emerald-500/5">
+          <div className="rounded-3xl border border-emerald-300/90 dark:border-emerald-800/90 bg-emerald-50/30 dark:bg-emerald-950/15 p-5 sm:p-8 space-y-5 sm:space-y-6 shadow-xl shadow-emerald-500/5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-5 h-5" />

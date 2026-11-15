@@ -165,9 +165,9 @@ export const LandingLab: React.FC = () => {
                   />
                 )}
 
-                <div className="flex items-center justify-between text-xs text-slate-400 border-b border-slate-800 pb-3 mb-3">
-                  <span className="font-mono text-emerald-400">PDF: Cairo_Tech_Expo_2026.pdf (14.2 MB)</span>
-                  <span className="font-bold text-white">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400 border-b border-slate-800 pb-3 mb-3">
+                  <span className="font-mono text-emerald-400 truncate">PDF: Cairo_Tech_Expo_2026.pdf (14.2 MB)</span>
+                  <span className="font-bold text-white shrink-0">
                     {scannedItemsCount} / 71 {dir === 'rtl' ? 'شركة مستخرجة' : 'Companies Found'}
                   </span>
                 </div>
@@ -206,9 +206,9 @@ export const LandingLab: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>✓ Layer Deduplication: 0 duplicate contacts saved</span>
-                  <span className="text-emerald-400 font-semibold font-mono">OCR Engine: Ready in 1.4s</span>
+                <div className="mt-4 pt-3 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-400">
+                  <span className="truncate">✓ Layer Deduplication: 0 duplicate contacts saved</span>
+                  <span className="text-emerald-400 font-semibold font-mono shrink-0">OCR Engine: Ready in 1.4s</span>
                 </div>
               </div>
             </div>
@@ -231,26 +231,26 @@ export const LandingLab: React.FC = () => {
                 </div>
 
                 {/* Toggle Chips */}
-                <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full sm:w-auto">
                   <button
                     onClick={() => setSpamFilterMode('risky')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-center transition-all ${
                       spamFilterMode === 'risky'
-                        ? 'bg-rose-600 text-white shadow-sm'
+                        ? 'bg-rose-600 text-white shadow-xs'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
-                    {dir === 'rtl' ? '⚠️ قبل التحسين (صياغة خطرة)' : '⚠️ Risky Copy'}
+                    {dir === 'rtl' ? '⚠️ قبل التحسين' : '⚠️ Risky Copy'}
                   </button>
                   <button
                     onClick={() => setSpamFilterMode('polished')}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-center transition-all ${
                       spamFilterMode === 'polished'
-                        ? 'bg-emerald-600 text-white shadow-sm'
+                        ? 'bg-emerald-600 text-white shadow-xs'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
-                    {dir === 'rtl' ? '✨ بعد تحسين Gemini AI' : '✨ Gemini AI Polished'}
+                    {dir === 'rtl' ? '✨ بعد تحسين Gemini' : '✨ Gemini AI Polished'}
                   </button>
                 </div>
               </div>
@@ -371,9 +371,9 @@ export const LandingLab: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 flex items-center justify-between">
-                <span>⚡ Circuit Breaker Status: Armed (Immediate auto-pause if any SMTP bounce threshold is breached)</span>
-                <span className="text-emerald-600 font-bold font-mono">100% Free Stack Safety</span>
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span>⚡ Circuit Breaker Status: Armed (Immediate auto-pause on bounce threshold)</span>
+                <span className="text-emerald-600 font-bold font-mono shrink-0">100% Free Stack Safety</span>
               </div>
             </div>
           )}
@@ -404,14 +404,14 @@ export const LandingLab: React.FC = () => {
               </div>
 
               <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 flex items-center justify-center font-bold">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 gap-2">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 flex items-center justify-center font-bold shrink-0">
                       JD
                     </div>
-                    <div dir="ltr" className="text-left">
-                      <div className="text-xs font-bold text-slate-900 dark:text-white font-mono">John Davis &lt;j.davis@innovatetech.com&gt;</div>
-                      <div className="text-[11px] text-slate-400">Subject: Re: Partnership Inquiry from Cairo Tech Fair</div>
+                    <div dir="ltr" className="text-left min-w-0">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white font-mono truncate">John Davis &lt;j.davis@innovatetech.com&gt;</div>
+                      <div className="text-[11px] text-slate-400 truncate">Subject: Re: Partnership Inquiry from Cairo Tech Fair</div>
                     </div>
                   </div>
                   <Badge variant="brand" size="sm">Live Reply</Badge>
@@ -429,7 +429,7 @@ export const LandingLab: React.FC = () => {
                   )}
                 </div>
 
-                <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400">
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px] text-slate-400">
                   <span>✓ Real-time two-way sync with Gmail inbox</span>
                   <span className="text-blue-500 font-semibold">Gemini 1.5 Pro Neural Translation</span>
                 </div>

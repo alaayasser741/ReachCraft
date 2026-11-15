@@ -20,6 +20,7 @@ import {
   Users,
   CreditCard,
   ShieldCheck,
+  MailPlus,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -40,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   const adminSubItems = [
     { tab: 'overview', label: isAr ? 'نظرة عامة ومراقبة' : 'Overview & KPIs', icon: BarChart3 },
     { tab: 'users', label: isAr ? 'إدارة المستخدمين' : 'User Accounts', icon: Users },
+    { tab: 'invitations', label: isAr ? 'دعوات التجربة' : 'User Invitations', icon: MailPlus },
     { tab: 'plans', label: isAr ? 'الباقات والحدود' : 'Plans & Quotas', icon: CreditCard },
     { tab: 'templates', label: isAr ? 'القوالب الافتراضية' : 'Default Templates', icon: FileCode2 },
     { tab: 'verified', label: isAr ? 'قاعدة الاتصال الموثقة' : 'Verified B2B Leads', icon: ShieldCheck },
@@ -63,7 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
 
   return (
     <aside
-      className={`w-64 bg-white dark:bg-slate-900 ${
+      className={`w-full lg:w-64 bg-white dark:bg-slate-900 ${
         dir === 'rtl' ? 'border-l' : 'border-r'
       } border-slate-200/80 dark:border-slate-800 flex flex-col h-full shrink-0`}
     >
