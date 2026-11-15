@@ -1,8 +1,10 @@
 import { Router, Response } from 'express';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
 import { requireSuperAdmin, AuthRequest } from '../middlewares/auth.middleware.js';
 import { logActivity } from '../services/activityLogger.js';
+import { sendInvitationEmail } from '../services/email/invitationMail.service.js';
 
 const router = Router();
 
@@ -593,6 +595,209 @@ router.get('/logs', (req: AuthRequest, res: Response): void => {
     page,
     limit,
     totalPages,
+  });
+});
+
+// ==========================================
+// 8. INVITATIONS MANAGEMENT (دعوات تجربة المنصة)
+// ==========================================
+
+const sendInvitationSchema = z.object({
+  email: z.string().email().optional(),
+  emails: z.array(z.string().email()).optional(),
+  name: z.string().optional(),
+  plan: z.enum(['beta_free', 'pro', 'unlimited']).default('beta_free'),
+  custom_message: z.string().max(1000).optional(),
+  language: z.enum(['ar', 'en']).default('ar'),
+}).refine(data => data.email || (data.emails && data.emails.length > 0), {
+  message: 'Either email or emails list is required',
+});
+
+// GET /api/admin/invitations - List all sent invitations & summary metrics
+router.get('/invitations', (req: AuthRequest, res: Response): void => {
+  const db = getDatabase();
+  const search = req.query.search ? `%${String(req.query.search).trim()}%` : null;
+  const status = req.query.status as string | undefined;
+
+  let whereClause = 'WHERE 1=1';
+  const params: any[] = [];
+
+  if (status && status !== 'all') {
+    whereClause += ' AND i.status = ?';
+    params.push(status);
+  }
+
+  if (search) {
+    whereClause += ' AND (i.email LIKE ? OR i.name LIKE ?)';
+    params.push(search, search);
+  }
+
+  const invitations = db.prepare(`
+    SELECT 
+      i.*,
+      u.name as inviter_name,
+      u.email as inviter_email
+    FROM invitations i
+    LEFT JOIN users u ON u.id = i.invited_by
+    ${whereClause}
+    ORDER BY i.id DESC
+  `).all(...params);
+
+  // Compute summary stats
+  const total = (db.prepare('SELECT COUNT(*) as count FROM invitations').get() as any)?.count || 0;
+  const accepted = (db.prepare("SELECT COUNT(*) as count FROM invitations WHERE status = 'accepted'").get() as any)?.count || 0;
+  const pending = (db.prepare("SELECT COUNT(*) as count FROM invitations WHERE status = 'sent' AND datetime(expires_at) > datetime('now')").get() as any)?.count || 0;
+  const expired = (db.prepare("SELECT COUNT(*) as count FROM invitations WHERE status = 'sent' AND datetime(expires_at) <= datetime('now')").get() as any)?.count || 0;
+
+  res.json({
+    success: true,
+    invitations,
+    stats: {
+      total,
+      accepted,
+      pending,
+      expired,
+      conversionRate: total > 0 ? Math.round((accepted / total) * 100) : 0,
+    },
+  });
+});
+
+// POST /api/admin/invitations/send - Send individual or batch invitations
+router.post('/invitations/send', async (req: AuthRequest, res: Response): Promise<void> => {
+  const parseResult = sendInvitationSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ success: false, error: 'Invalid invitation data', details: parseResult.error.format() });
+    return;
+  }
+
+  const { email, emails, name, plan, custom_message, language } = parseResult.data;
+  const targetEmails = emails && emails.length > 0 ? emails : [email!];
+  const db = getDatabase();
+  const adminId = req.user?.id || 1;
+
+  const results: Array<{ email: string; success: boolean; error?: string }> = [];
+
+  for (const targetEmail of targetEmails) {
+    const cleanEmail = targetEmail.trim().toLowerCase();
+    const token = crypto.randomBytes(24).toString('hex');
+
+    // Invalidate existing sent invitations for this email
+    db.prepare("UPDATE invitations SET status = 'expired' WHERE email = ? AND status = 'sent'").run(cleanEmail);
+
+    // Insert new invitation
+    db.prepare(`
+      INSERT INTO invitations (email, name, invited_by, token, plan, custom_message, language, status, sent_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'sent', datetime('now'), datetime('now', '+14 days'))
+    `).run(cleanEmail, name || null, adminId, token, plan, custom_message || null, language);
+
+    // Send email
+    const mailResult = await sendInvitationEmail({
+      email: cleanEmail,
+      name,
+      token,
+      plan,
+      customMessage: custom_message,
+      language,
+    });
+
+    if (mailResult.success) {
+      results.push({ email: cleanEmail, success: true });
+    } else {
+      results.push({ email: cleanEmail, success: false, error: mailResult.error });
+    }
+  }
+
+  logActivity({
+    category: 'admin',
+    action: 'send',
+    title: `إرسال ${targetEmails.length} دعوة لتجربة المنصة بواسطة المشرف`,
+    details: JSON.stringify({ count: targetEmails.length, plan }),
+    userId: adminId,
+    ip: req.ip,
+  });
+
+  const successfulCount = results.filter(r => r.success).length;
+
+  res.json({
+    success: successfulCount > 0,
+    message: language === 'ar' 
+      ? `تم إرسال ${successfulCount} من أصل ${targetEmails.length} دعوة بنجاح عبر البريد الإلكتروني.`
+      : `Successfully sent ${successfulCount} of ${targetEmails.length} invitations.`,
+    results,
+  });
+});
+
+// POST /api/admin/invitations/:id/resend - Resend an existing invitation
+router.post('/invitations/:id/resend', async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = Number(req.params.id);
+  const db = getDatabase();
+
+  const invitation = db.prepare('SELECT * FROM invitations WHERE id = ?').get(id) as any;
+  if (!invitation) {
+    res.status(404).json({ success: false, error: 'Invitation not found' });
+    return;
+  }
+
+  // Refresh token & expiry
+  const newToken = crypto.randomBytes(24).toString('hex');
+  db.prepare(`
+    UPDATE invitations 
+    SET token = ?, status = 'sent', sent_at = datetime('now'), expires_at = datetime('now', '+14 days')
+    WHERE id = ?
+  `).run(newToken, id);
+
+  const mailResult = await sendInvitationEmail({
+    email: invitation.email,
+    name: invitation.name,
+    token: newToken,
+    plan: invitation.plan,
+    customMessage: invitation.custom_message,
+    language: invitation.language || 'ar',
+  });
+
+  if (!mailResult.success) {
+    res.status(500).json({ success: false, error: mailResult.error || 'Failed to resend email' });
+    return;
+  }
+
+  logActivity({
+    category: 'admin',
+    action: 'send',
+    title: `إعادة إرسال دعوة تجربة إلى: ${invitation.email}`,
+    userId: req.user?.id || 1,
+    ip: req.ip,
+  });
+
+  res.json({
+    success: true,
+    message: 'تم إعادة إرسال الدعوة بنجاح.',
+  });
+});
+
+// DELETE /api/admin/invitations/:id - Delete / revoke an invitation
+router.delete('/invitations/:id', (req: AuthRequest, res: Response): void => {
+  const id = Number(req.params.id);
+  const db = getDatabase();
+
+  const invitation = db.prepare('SELECT email FROM invitations WHERE id = ?').get(id) as any;
+  if (!invitation) {
+    res.status(404).json({ success: false, error: 'Invitation not found' });
+    return;
+  }
+
+  db.prepare('DELETE FROM invitations WHERE id = ?').run(id);
+
+  logActivity({
+    category: 'admin',
+    action: 'delete',
+    title: `حذف دعوة التجربة الخاصة بـ: ${invitation.email}`,
+    userId: req.user?.id || 1,
+    ip: req.ip,
+  });
+
+  res.json({
+    success: true,
+    message: 'تم حذف الدعوة بنجاح.',
   });
 });
 

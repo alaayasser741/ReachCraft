@@ -38,7 +38,7 @@ export const LandingHero: React.FC = () => {
       <div className="absolute inset-0 bg-[radial-gradient(#94a3b8_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1.2px,transparent_1.2px)] [background-size:28px_28px] opacity-35 pointer-events-none" />
 
       {/* Subtle Focal Center Glow for Headline Legibility */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] sm:w-[850px] h-[350px] bg-gradient-to-tr from-brand-500/12 via-emerald-500/10 to-indigo-500/8 rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[600px] lg:w-[850px] max-w-full h-[350px] bg-gradient-to-tr from-brand-500/12 via-emerald-500/10 to-indigo-500/8 rounded-full blur-3xl pointer-events-none -z-10" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center max-w-4xl mx-auto space-y-6">
@@ -173,54 +173,54 @@ export const LandingHero: React.FC = () => {
         {/* Live Interactive Product Card Simulation (Engineered OS Window) */}
         <div className="mt-12 max-w-5xl mx-auto rounded-3xl border border-slate-200/90 dark:border-slate-800 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden">
           {/* Mac-style Window Title Bar */}
-          <div className="px-5 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-rose-500/80" />
-              <div className="w-3 h-3 rounded-full bg-amber-500/80" />
-              <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-              <span className="font-mono text-slate-400 text-[11px] ms-2">
+          <div className="px-4 sm:px-5 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-xs gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-rose-500/80 shrink-0" />
+              <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-500/80 shrink-0" />
+              <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500/80 shrink-0" />
+              <span className="font-mono text-slate-400 text-[10px] sm:text-[11px] ms-1 sm:ms-2 truncate max-w-[150px] xs:max-w-[220px] sm:max-w-none">
                 reachcraft-core // exhibition-pipeline.engine
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
                 <Check className="w-3 h-3" /> Live Sandbox
               </span>
             </div>
           </div>
 
           {/* Interactive Card Body */}
-          <div className="p-6 sm:p-8 space-y-6">
+          <div className="p-4 sm:p-8 space-y-5 sm:space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-400 shrink-0">
-                  <Sparkles className="w-6 h-6" />
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-brand-600/20 border border-brand-500/30 flex items-center justify-center text-brand-400 shrink-0">
+                  <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                    Cairo_Industrial_Expo_2026.pdf
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-lg font-bold text-white flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <span className="truncate">Cairo_Industrial_Expo_2026.pdf</span>
                     <span className="text-xs font-normal text-slate-400 font-mono">(18.4 MB)</span>
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">
                     Extracted & enriched via Tesseract OCR + Google Gemini 1.5 Pro
                   </p>
                 </div>
               </div>
 
               {/* View Switcher Chips */}
-              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-800/80 border border-slate-700">
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 p-1 rounded-xl bg-slate-800/80 border border-slate-700 w-full sm:w-auto">
                 <button
                   onClick={() => setHeroTab('analysis')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    heroTab === 'analysis' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white'
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold text-center transition-all ${
+                    heroTab === 'analysis' ? 'bg-brand-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   AI Deliverability Audit
                 </button>
                 <button
                   onClick={() => setHeroTab('extraction')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    heroTab === 'extraction' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white'
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold text-center transition-all ${
+                    heroTab === 'extraction' ? 'bg-brand-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   Verified Contacts (71)
@@ -230,18 +230,18 @@ export const LandingHero: React.FC = () => {
 
             {/* Tab Contents */}
             {heroTab === 'analysis' && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-in">
-                <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-750 space-y-1">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 animate-fade-in">
+                <div className="p-3.5 sm:p-4 rounded-xl bg-slate-800/60 border border-slate-750 space-y-1">
                   <span className="text-slate-400 text-xs font-semibold">Gemini Spam Score</span>
                   <div className="text-2xl font-black text-emerald-400 font-mono">98 / 100</div>
                   <p className="text-[11px] text-slate-400">Zero spam triggers, personalized merge tags</p>
                 </div>
-                <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-750 space-y-1">
+                <div className="p-3.5 sm:p-4 rounded-xl bg-slate-800/60 border border-slate-750 space-y-1">
                   <span className="text-slate-400 text-xs font-semibold">Anti-Ban Queue Pace</span>
                   <div className="text-2xl font-black text-brand-400 font-mono">20 - 35s</div>
                   <p className="text-[11px] text-slate-400">Randomized humanized dispatch interval</p>
                 </div>
-                <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-750 space-y-1">
+                <div className="p-3.5 sm:p-4 rounded-xl bg-slate-800/60 border border-slate-750 space-y-1">
                   <span className="text-slate-400 text-xs font-semibold">Circuit Breaker</span>
                   <div className="text-2xl font-black text-purple-400 font-mono">Active (Armed)</div>
                   <p className="text-[11px] text-slate-400">Auto-halt on bounce spikes or DNS issues</p>
@@ -250,36 +250,38 @@ export const LandingHero: React.FC = () => {
             )}
 
             {heroTab === 'extraction' && (
-              <div dir="ltr" className="space-y-3 animate-fade-in text-left">
-                <div className="flex items-center justify-between text-xs text-slate-400 border-b border-slate-800 pb-2">
-                  <span>Company Name</span>
-                  <span>Direct Email</span>
-                  <span>Industry</span>
-                  <span>Status</span>
-                </div>
-                <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-800/40">
-                  <span className="font-bold text-white">Delta Industrial Systems</span>
-                  <span className="text-slate-300 font-mono">info@delta-systems.eg</span>
-                  <span className="text-slate-400">Heavy Machinery</span>
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Verified
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-800/40">
-                  <span className="font-bold text-white">Al-Ahram Packaging Co.</span>
-                  <span className="text-slate-300 font-mono">contact@ahrampack.com</span>
-                  <span className="text-slate-400">Packaging & Logistics</span>
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Verified
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs py-1.5">
-                  <span className="font-bold text-white">Smart Solutions MENA</span>
-                  <span className="text-slate-300 font-mono">sales@smartsolutions.ae</span>
-                  <span className="text-slate-400">Cloud & IT</span>
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Verified
-                  </span>
+              <div className="overflow-x-auto -mx-1 px-1 scrollbar-thin">
+                <div dir="ltr" className="min-w-[440px] space-y-3 animate-fade-in text-left">
+                  <div className="flex items-center justify-between text-xs text-slate-400 border-b border-slate-800 pb-2">
+                    <span>Company Name</span>
+                    <span>Direct Email</span>
+                    <span>Industry</span>
+                    <span>Status</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-800/40">
+                    <span className="font-bold text-white">Delta Industrial Systems</span>
+                    <span className="text-slate-300 font-mono">info@delta-systems.eg</span>
+                    <span className="text-slate-400">Heavy Machinery</span>
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Verified
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-800/40">
+                    <span className="font-bold text-white">Al-Ahram Packaging Co.</span>
+                    <span className="text-slate-300 font-mono">contact@ahrampack.com</span>
+                    <span className="text-slate-400">Packaging & Logistics</span>
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Verified
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs py-1.5">
+                    <span className="font-bold text-white">Smart Solutions MENA</span>
+                    <span className="text-slate-300 font-mono">sales@smartsolutions.ae</span>
+                    <span className="text-slate-400">Cloud & IT</span>
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Verified
+                    </span>
+                  </div>
                 </div>
               </div>
             )}

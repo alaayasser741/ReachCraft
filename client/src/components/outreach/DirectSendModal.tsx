@@ -127,7 +127,7 @@ export const DirectSendModal: React.FC<DirectSendModalProps> = ({
     try {
       const res = await api.personalizePitch({
         companyName: companyName || 'your company',
-        role: jobTitle || 'Frontend Engineer',
+        role: jobTitle || 'Business Development / Partnership',
         recipientName: personName || undefined,
       });
 

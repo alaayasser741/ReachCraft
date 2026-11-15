@@ -41,6 +41,8 @@ export const GoogleSignInButton: React.FC<Props> = ({ onSuccess, onError, disabl
       try {
         window.google.accounts.id.initialize({
           client_id: clientId,
+          ux_mode: 'popup',
+          auto_select: false,
           callback: (response: any) => {
             if (response.credential) {
               onSuccess(response.credential);

@@ -23,16 +23,24 @@ import adminRoutes from './routes/admin.routes.js';
 export function createApp(): express.Application {
   const app = express();
 
-  // Basic security and parsing
+  // Basic security and parsing with Google Identity Services (GIS) compatibility
   app.use(
     helmet({
       contentSecurityPolicy: false, // Allows inline scripts for dev & preview
+      crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }, // Critical for Google Sign-In popup postMessage
+      crossOriginResourcePolicy: false,
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' }, // Required for Google OAuth origin verification
     })
   );
 
   app.use(
     cors({
-      origin: [env.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'],
+      origin: [
+        env.CLIENT_URL,
+        'https://reachcraft.fly.dev',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+      ],
       credentials: true,
     })
   );

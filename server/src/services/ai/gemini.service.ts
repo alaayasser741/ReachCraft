@@ -172,26 +172,25 @@ export class GeminiService {
     companyWebsite?: string;
     companyDescription?: string;
     role?: string;
+    senderName?: string;
+    senderCompany?: string;
     recipientName?: string;
   }): Promise<string> {
     const prompt = `
-You are an expert tech recruiter and cold outreach consultant.
-Applicant Profile:
-- Name: Alaa Abdullah
-- Role: Frontend Engineer
-- Experience: 3 years of production experience in React.js, Next.js, and TypeScript.
-- Core strengths: Web performance optimization, clean component architecture, large-scale e-commerce & SaaS platforms.
-- Portfolio / CV: Available on request.
+You are an expert B2B sales and business development outreach consultant.
+Sender Profile:
+- Name: ${params.senderName || 'Representative'}
+- Role / Title: ${params.role || 'Business Development & Partnerships'}
+- Company: ${params.senderCompany || 'Our Company'}
 
 Target Recipient:
 - Company: ${params.companyName || 'Target Company'}
 - Company Website: ${params.companyWebsite || 'Not provided'}
-- Company Focus / Description: ${params.companyDescription || 'Technology & software services'}
-- Recipient Contact Name: ${params.recipientName || 'Hiring Manager'}
-- Target Role: ${params.role || 'Frontend Engineer / React Developer'}
+- Company Focus / Description: ${params.companyDescription || 'Business and industry operations'}
+- Recipient Contact Name: ${params.recipientName || 'Valued Partner'}
 
 Task:
-Write a personalized 2-3 sentence opening hook that connects Alaa's 3-year production experience in React.js, Next.js, and TypeScript directly to what ${params.companyName} builds or needs.
+Write a personalized 2-3 sentence opening hook that connects the sender's business value and partnership capabilities directly to what ${params.companyName} builds, offers, or needs.
 Tone: Professional, direct, confident, and human. Avoid generic AI fluff ("I am writing to express my enthusiasm", "In today's fast-paced world").
 Output ONLY the 2-3 sentence paragraph.
 `;
@@ -248,14 +247,14 @@ Respond with a JSON object strictly following this schema:
   }): Promise<string[]> {
     const prompt = `
 Generate 4 high-converting, spam-free cold outreach email subject lines for:
-Applicant: Alaa Abdullah (Frontend Engineer with 3 years production React/Next.js/TypeScript experience)
+Outreach Type: B2B Business Development / Partnership Outreach
 Target Company: ${params.companyName || '{{company_name}}'}
-Role: ${params.role || 'Frontend Engineer'}
+Context / Topic: ${params.context || params.role || 'Business Collaboration'}
 
 Rules:
 - Keep length under 6-8 words.
-- Natural, curiosity-driven, zero hype or clickbait.
-- Suitable for tech leads, engineering managers, and founders.
+- Natural, curiosity-driven, zero hype, zero clickbait, zero spam words.
+- Suitable for founders, executives, sales leads, and decision makers.
 - Support variable placeholder {{company_name}} where relevant.
 
 Return a JSON array of strings ONLY:
@@ -268,17 +267,17 @@ Return a JSON array of strings ONLY:
       if (Array.isArray(parsed)) return parsed;
       if (parsed.subjects && Array.isArray(parsed.subjects)) return parsed.subjects;
       return [
-        `Frontend Engineer Application – Alaa Abdullah | ${params.companyName || '{{company_name}}'}`,
-        `React / Next.js Engineer for ${params.companyName || '{{company_name}}'}`,
-        `Frontend role inquiry – Alaa Abdullah`,
-        `Quick question regarding frontend engineering at ${params.companyName || '{{company_name}}'}`,
+        `Exploring partnership with ${params.companyName || '{{company_name}}'}`,
+        `Collaboration inquiry | ${params.companyName || '{{company_name}}'}`,
+        `Quick question for ${params.companyName || '{{company_name}}'}`,
+        `Partnership opportunity for ${params.companyName || '{{company_name}}'}`,
       ];
     } catch {
       return [
-        `Frontend Engineer Application – Alaa Abdullah | ${params.companyName || '{{company_name}}'}`,
-        `React / Next.js Engineer for ${params.companyName || '{{company_name}}'}`,
-        `Frontend role inquiry – Alaa Abdullah`,
-        `Quick question regarding frontend engineering at ${params.companyName || '{{company_name}}'}`,
+        `Exploring partnership with ${params.companyName || '{{company_name}}'}`,
+        `Collaboration inquiry | ${params.companyName || '{{company_name}}'}`,
+        `Quick question for ${params.companyName || '{{company_name}}'}`,
+        `Partnership opportunity for ${params.companyName || '{{company_name}}'}`,
       ];
     }
   }
@@ -286,25 +285,23 @@ Return a JSON array of strings ONLY:
   public async matchJobDescription(params: {
     jobDescription: string;
     companyName?: string;
+    candidateProfile?: string;
   }): Promise<JobMatchResult> {
     const prompt = `
-You are a senior tech career coach.
+You are a senior career and recruitment outreach consultant.
 Candidate Profile:
-- Alaa Abdullah, Frontend Engineer
-- 3 years production experience in React.js, Next.js, and TypeScript.
-- Strong track record in web performance optimization, responsive pixel-perfect UI, enterprise & SaaS applications, and end-to-end component architecture.
-- CV link: https://drive.google.com/file/d/1AwwZPxL2alQrUaB6z_XWOB7tLVdKJepq/view?usp=drive_link
+${params.candidateProfile || '- Professional applicant with proven background matching industry requirements.'}
 
-Target Job Description:
+Target Job / RFP Description:
 ${params.jobDescription}
 
-Target Company: ${params.companyName || 'The Company'}
+Target Company / Client: ${params.companyName || 'The Company'}
 
 Analyze:
-1. Match score (0-100%) between Alaa's Frontend skills and the job requirements.
-2. List 3-5 specific matching skills / technologies found in both.
+1. Match score (0-100%) between the profile and the requirements.
+2. List 3-5 specific matching skills / qualifications found in both.
 3. Draft a tailored, highly compelling 3-paragraph outreach pitch highlighting the exact experience matching their requirements.
-4. Suggest a custom subject line.
+4. Suggest a custom, spam-free subject line.
 
 Respond with a JSON object strictly following this schema:
 {
@@ -321,9 +318,9 @@ Respond with a JSON object strictly following this schema:
     } catch {
       return {
         matchScore: 90,
-        keyMatchingSkills: ['React.js', 'Next.js', 'TypeScript', 'Clean Architecture', 'Web Performance'],
-        tailoredOpening: `I noticed your opening for a Frontend role at ${params.companyName || 'your company'} and wanted to reach out directly. With 3 years of hands-on production experience building high-scale React and Next.js platforms, my background directly aligns with your requirements.`,
-        suggestedSubject: `Frontend Engineer Application – Alaa Abdullah | ${params.companyName || 'Your Team'}`,
+        keyMatchingSkills: ['Industry Experience', 'Technical Proficiency', 'Communication', 'Execution'],
+        tailoredOpening: `I noticed your opening at ${params.companyName || 'your company'} and wanted to reach out directly. My background and track record directly align with your requirements.`,
+        suggestedSubject: `Application / Collaboration Inquiry | ${params.companyName || 'Your Team'}`,
       };
     }
   }
@@ -352,10 +349,10 @@ ${params.body}
 
 Task:
 Rewrite the subject and body to address EVERY criticism above and achieve a 95%+ inbox placement rate, following these rules:
-1. Preserve core identity: Alaa Abdullah, Frontend Engineer with 3 years of production experience in React.js, Next.js, TypeScript.
-2. Keep contact details and links intact (CV link and phone +201040353590). If criticism mentions Google Drive link, format it cleanly with professional anchor text or button so it does not look like a suspicious raw phishing URL.
-3. Remove all spam trigger words, hyperbolic buzzwords, and redundant duplicate paragraphs.
-4. Preserve variables like {{company_name}} and {{person_name}}.
+1. Preserve core sender offering, business value, credentials, and contact details.
+2. Keep links intact with clean, professional anchor text (no bare raw spammy URLs).
+3. Remove all spam trigger words, aggressive claims, hyperbolic buzzwords, and redundant paragraphs.
+4. Preserve variables like {{company_name}}, {{person_name}}, {{sender_company}}, {{sender_name}}.
 5. Format: Return clean ${isEmail ? 'HTML with <p> tags' : 'plain text formatted for WhatsApp'}.
 6. Provide a concise explanation of what was fixed in Arabic and English.
 
@@ -393,7 +390,7 @@ Respond strictly with a JSON object in this format:
     body: string;
   }): Promise<EmailClassificationResult> {
     const prompt = `
-You are an intelligent inbox AI assistant for Alaa Abdullah (Frontend Engineer with 3 years of production experience in React.js, Next.js, and TypeScript).
+You are an intelligent B2B inbox AI assistant for business outreach and client communications.
 Analyze this incoming email:
 
 From: ${params.from}
@@ -402,26 +399,24 @@ Body:
 ${params.body.slice(0, 3000)}
 
 Classify into one category:
-- "hr_interview": A direct response from HR, recruiter, talent acquisition, or interviewer asking for an interview, availability, technical call, or screening.
-- "company_update": An update regarding application status, assessment link, take-home task, or feedback from an applied role.
-- "direct_reply": Any direct human reply or discussion regarding cold outreach or networking.
-- "job_alert": Automated job board alerts (LinkedIn, Indeed, Bayt, etc.), newsletters, or promotional bulk emails.
-- "rejection": Polite rejection / notice that role was filled.
-- "general": Other general notifications, account updates, receipts, etc.
+- "hr_interview": Direct response requesting a meeting, demo, discovery call, or interview.
+- "company_update": An update regarding application status, contract, proposal, or business feedback.
+- "direct_reply": Any direct human reply or discussion regarding cold outreach or collaboration.
+- "job_alert": Automated notifications, platform updates, newsletters, or promotional bulk emails.
+- "rejection": Polite decline / not interested at this time.
+- "general": Other general notifications, receipts, or administrative messages.
 
 Assign priority:
-- "urgent": Needs immediate attention today (e.g. interview invitation with specific timing, urgent client/lead question).
-- "high": Important opportunity (HR reply, interview request, feedback).
-- "normal": Informational company update, application acknowledgment.
-- "low": Automated job alert, newsletter, receipt.
+- "urgent": Needs immediate attention today (e.g. meeting request with specific timing, urgent client inquiry).
+- "high": Important opportunity (interested client, partnership discussion, warm lead).
+- "normal": Informational company update, polite acknowledgement.
+- "low": Automated alert, newsletter, receipt.
 
-Extract a 1-sentence key takeaway in Arabic (ملخص الإيميل بالعربية في جملة واحدة واضحة تفيد علاء مباشرة).
+Extract a 1-sentence key takeaway in Arabic (ملخص الإيميل بالعربية في جملة واحدة واضحة تفيد المستخدم مباشرة).
 
-Draft a professional 2-3 sentence response in English from Alaa Abdullah if a reply is warranted:
-- Confirm interest and availability.
-- Keep tone confident, warm, and professional.
-- Mention readiness to discuss how his React.js & Next.js production experience can add value.
-- Include his contact info (Alaa Abdullah | +201040353590 | https://drive.google.com/file/d/1AwwZPxL2alQrUaB6z_XWOB7tLVdKJepq/view?usp=drive_link).
+Draft a professional 2-3 sentence response in English if a reply is warranted:
+- Confirm receipt, express interest, and suggest a convenient time for a call.
+- Keep tone confident, warm, concise, and professional.
 
 Respond strictly with a JSON object:
 {
@@ -439,14 +434,14 @@ Respond strictly with a JSON object:
         category: parsed.category || 'general',
         priority: parsed.priority || 'normal',
         takeawayAr: parsed.takeawayAr || 'وصلتك رسالة جديدة في بريدك.',
-        suggestedReply: parsed.suggestedReply || `Hi,\n\nThank you for reaching out! I would be delighted to connect and discuss this further.\n\nBest regards,\nAlaa Abdullah\n+201040353590\nhttps://drive.google.com/file/d/1AwwZPxL2alQrUaB6z_XWOB7tLVdKJepq/view?usp=drive_link`,
+        suggestedReply: parsed.suggestedReply || `Hi,\n\nThank you for getting back to us! We would be delighted to schedule a brief call to discuss this further.\n\nBest regards,\nReachCraft Team`,
       };
     } catch {
       return {
         category: 'general',
         priority: 'normal',
         takeawayAr: 'رسالة واردة عبر البريد الإلكتروني.',
-        suggestedReply: `Hi,\n\nThank you for your message. I'd be glad to discuss how I can contribute to your team.\n\nBest regards,\nAlaa Abdullah\n+201040353590\nhttps://drive.google.com/file/d/1AwwZPxL2alQrUaB6z_XWOB7tLVdKJepq/view?usp=drive_link`,
+        suggestedReply: `Hi,\n\nThank you for your message. We would be happy to connect and discuss opportunities for collaboration.\n\nBest regards,\nReachCraft Team`,
       };
     }
   }
@@ -458,23 +453,18 @@ Respond strictly with a JSON object:
     userInstructions?: string;
   }): Promise<{ replyBody: string }> {
     const prompt = `
-You are the AI email assistant for Alaa Abdullah (Frontend Engineer with 3 years of production experience in React.js, Next.js, and TypeScript).
-Alaa received the following email:
+You are a professional B2B email assistant.
+The user received the following email:
 
 From: ${params.from}
 Subject: ${params.subject}
 Original Email:
 ${params.originalBody.slice(0, 3000)}
 
-Alaa's specific instructions / intent for the reply:
-${params.userInstructions || 'Accept and express enthusiasm, confirm availability for a call or interview.'}
+User's specific instructions / intent for the reply:
+${params.userInstructions || 'Accept and express enthusiasm, confirm availability for a call or meeting.'}
 
-Alaa's profile:
-- Role: Frontend Engineer (React.js, Next.js, TypeScript, Tailored Architectures, High Performance).
-- Phone: +201040353590
-- CV Link: https://drive.google.com/file/d/1AwwZPxL2alQrUaB6z_XWOB7tLVdKJepq/view?usp=drive_link
-
-Write a concise, polished, professional email reply in English meeting Alaa's instructions.
+Write a concise, polished, professional email reply in English meeting the user's instructions.
 Output ONLY the plain text of the email reply (including greeting and sign-off).
 `;
 

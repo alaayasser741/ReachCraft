@@ -142,8 +142,8 @@ export const Templates: React.FC = () => {
     setIsGeneratingSubjects(true);
     try {
       const res = await api.generateSubjects({
-        role: 'Frontend Engineer',
-        context: editingTemplate?.name,
+        role: editingTemplate?.name || 'Business Development',
+        context: editingTemplate?.name || 'Partnership Outreach',
       });
       setSuggestedSubjects(res.subjects);
       toastSuccess(t('ai.suggestSubjectsBtn'));

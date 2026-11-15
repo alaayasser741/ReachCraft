@@ -96,34 +96,34 @@ export const LandingDeveloper: React.FC = () => {
 
         {/* Sleek Segmented View Switcher: Identity Card vs Shipped Projects */}
         <div className="flex items-center justify-center mb-8">
-          <div className="inline-flex p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700 shadow-inner">
+          <div className="grid grid-cols-2 w-full max-w-sm sm:max-w-md p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700 shadow-inner">
             <button
               onClick={() => setActiveView('identity')}
-              className={`flex items-center gap-2 py-2 px-5 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeView === 'identity'
-                ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm'
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-3 sm:px-5 rounded-xl text-[11px] sm:text-sm font-bold transition-all ${activeView === 'identity'
+                ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
             >
-              <User className="w-4 h-4" />
-              <span>{dir === 'rtl' ? 'بطاقة الهوية' : 'Developer Identity Card'}</span>
+              <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span className="truncate">{dir === 'rtl' ? 'بطاقة الهوية' : 'Identity Card'}</span>
             </button>
 
             <button
               onClick={() => setActiveView('projects')}
-              className={`flex items-center gap-2 py-2 px-5 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeView === 'projects'
-                ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm'
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 px-3 sm:px-5 rounded-xl text-[11px] sm:text-sm font-bold transition-all ${activeView === 'projects'
+                ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
             >
-              <Briefcase className="w-4 h-4" />
-              <span>{dir === 'rtl' ? 'المشاريع الحية المنشورة' : 'Shipped Live Projects'}</span>
+              <Briefcase className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+              <span className="truncate">{dir === 'rtl' ? 'المشاريع المنشورة' : 'Live Projects'}</span>
             </button>
           </div>
         </div>
 
-        {/* VIEW 1: PREVIOUS IDENTICAL DEVELOPER CARD UI */}
+        {/* VIEW 1: DEVELOPER IDENTITY CARD */}
         {activeView === 'identity' && (
-          <div className="max-w-4xl mx-auto bg-white dark:bg-slate-850 rounded-3xl border border-slate-200 dark:border-slate-800 p-7 sm:p-10 shadow-xl space-y-8 animate-fade-in">
+          <div className="max-w-4xl mx-auto bg-white dark:bg-slate-850 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 sm:p-10 shadow-xl space-y-6 sm:space-y-8 animate-fade-in">
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 border-b border-slate-100 dark:border-slate-800 pb-8">
               {/* Avatar with animated halo and personal photo */}
               <div className="relative shrink-0">
