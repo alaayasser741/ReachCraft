@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Code2,
   CheckCircle2,
@@ -92,6 +93,16 @@ export const LandingDeveloper: React.FC = () => {
           <p className="text-sm sm:text-base font-semibold mt-0.5 text-slate-500">
             Mid-Level Frontend Engineer <a href="https://nawah-softwarehouse.com/" target="_blank" rel="noreferrer" className='text-brand-600 dark:text-brand-400'>@ Nawah Software House</a>
           </p>
+
+          <div className="pt-2">
+            <Link
+              to="/developer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-md shadow-brand-500/20 active:scale-95 transition-all"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>{dir === 'rtl' ? 'عرض صفحة البورتفوليو المنفصلة للمطور ←' : 'View Full Dedicated Portfolio Page →'}</span>
+            </Link>
+          </div>
         </div>
 
         {/* Sleek Segmented View Switcher: Identity Card vs Shipped Projects */}
@@ -308,6 +319,17 @@ export const LandingDeveloper: React.FC = () => {
             ))}
           </div>
         )}
+
+        {/* Dedicated Full Portfolio Page Link Banner */}
+        <div className="mt-12 text-center">
+          <Link
+            to="/developer"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold text-xs sm:text-sm shadow-xl transition-all"
+          >
+            <span>{dir === 'rtl' ? 'استكشف صفحة البورتفوليو المنفصلة والسيرة الذاتية الكاملة' : 'Explore Dedicated Standalone Portfolio & Resume Page'}</span>
+            <ExternalLink className="w-4 h-4 text-emerald-400" />
+          </Link>
+        </div>
       </div>
     </section>
   );

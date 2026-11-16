@@ -22,6 +22,7 @@ import { Logs } from './pages/Logs';
 import { Settings } from './pages/Settings';
 import { Inbox } from './pages/Inbox';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { DeveloperPortfolio } from './pages/DeveloperPortfolio';
 import { CookieConsentBanner } from './components/compliance/CookieConsentBanner';
 import { OnboardingWizardModal } from './components/onboarding/OnboardingWizardModal';
 
@@ -74,6 +75,10 @@ export const App: React.FC = () => {
                 <Routes>
                   {/* Public Landing Page */}
                   <Route path="/" element={<LandingPage />} />
+
+                  {/* Public Developer Portfolio */}
+                  <Route path="/developer" element={<DeveloperPortfolio />} />
+                  <Route path="/portfolio" element={<DeveloperPortfolio />} />
 
                   {/* Public Auth Routes */}
                   <Route path="/login" element={<Login />} />

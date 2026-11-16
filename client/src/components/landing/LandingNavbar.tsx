@@ -65,12 +65,12 @@ export const LandingNavbar: React.FC = () => {
           >
             {t('landing.nav.antiBan')}
           </button>
-          <button
-            onClick={() => scrollToSection('developer')}
+          <Link
+            to="/developer"
             className="px-3 py-1.5 rounded-full hover:text-brand-600 dark:hover:text-brand-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-colors"
           >
             {t('landing.nav.developer')}
-          </button>
+          </Link>
           <button
             onClick={() => scrollToSection('tech-stack')}
             className="px-3 py-1.5 rounded-full hover:text-brand-600 dark:hover:text-brand-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-colors"
@@ -202,12 +202,13 @@ export const LandingNavbar: React.FC = () => {
             >
               {t('landing.nav.antiBan')}
             </button>
-            <button
-              onClick={() => scrollToSection('developer')}
-              className="w-full text-start py-2.5 px-3 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors"
+            <Link
+              to="/developer"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full text-start py-2.5 px-3 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors block"
             >
               {t('landing.nav.developer')}
-            </button>
+            </Link>
             <button
               onClick={() => scrollToSection('tech-stack')}
               className="w-full text-start py-2.5 px-3 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 transition-colors"

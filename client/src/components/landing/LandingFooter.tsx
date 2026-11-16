@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from '../../i18n/LanguageContext';
 
 export const LandingFooter: React.FC = () => {
@@ -17,7 +18,14 @@ export const LandingFooter: React.FC = () => {
 
         <div className="text-center sm:text-end space-y-1">
           <p>{t('landing.footer.rights')}</p>
-          <p className="text-[11px] text-slate-400">{t('landing.footer.designedBy')}</p>
+          <p className="text-[11px] text-slate-400">
+            <Link
+              to="/developer"
+              className="hover:text-brand-600 dark:hover:text-brand-400 transition-colors underline decoration-slate-300 dark:decoration-slate-700 font-semibold"
+            >
+              {t('landing.footer.designedBy')}
+            </Link>
+          </p>
         </div>
       </div>
     </footer>
